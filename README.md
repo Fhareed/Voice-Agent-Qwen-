@@ -146,4 +146,4 @@ export OLLAMA_HOST="your-ollama-host"
 
 - ElevenLabs for text-to-speech
 - Ollama for local LLM inference
-- LangChain for AI pipeline orchestration 
+- LangChain for AI pipeline orchestration
