@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+speechrecognition
+elevenlabs
+langchain
+langchain_ollama
+pydub
+python-multipart 

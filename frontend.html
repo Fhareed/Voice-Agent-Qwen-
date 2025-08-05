@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Voice Agent</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 500px; margin: 40px auto; }
+        button { margin: 10px 0; padding: 10px 20px; font-size: 16px; }
+        select, label { font-size: 16px; }
+        #status { margin: 10px 0; color: #555; }
+    </style>
+</head>
+<body>
+    <h2>Voice Agent</h2>
+    <label for="language">Select Language:</label>
+    <select id="language">
+        <option value="english">English</option>
+        <option value="finnish">Finnish</option>
+        <option value="swedish">Swedish</option>
+    </select>
+    <br>
+    <button id="record">🎤 Record</button>
+    <div id="status"></div>
+    <audio id="audioResponse" controls style="width:100%; display:none;"></audio>
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const recordBtn = document.getElementById('record');
+        const statusDiv = document.getElementById('status');
+        const audioElem = document.getElementById('audioResponse');
+        const langSelect = document.getElementById('language');
+        let isRecording = false;
+
+        recordBtn.onclick = async () => {
+            if (!isRecording) {
+                // Start recording
+                if (!navigator.mediaDevices) {
+                    alert('MediaDevices API not supported.');
+                    return;
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    statusDiv.textContent = 'Processing...';
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.wav');
+                    formData.append('language', langSelect.value);
+                    try {
+                        const response = await fetch('/ask', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            statusDiv.textContent = 'Error: ' + (err.error || response.statusText);
+                            return;
+                        }
+                        const audioData = await response.blob();
+                        audioElem.src = URL.createObjectURL(audioData);
+                        audioElem.style.display = 'block';
+                        audioElem.play();
+                        statusDiv.textContent = 'Response received!';
+                    } catch (e) {
+                        statusDiv.textContent = 'Error: ' + e.message;
+                    }
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                recordBtn.textContent = '⏹️ Stop';
+                statusDiv.textContent = 'Recording...';
+            } else {
+                // Stop recording
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.textContent = '🎤 Record';
+                statusDiv.textContent = 'Stopped. Sending...';
+            }
+        };
+    </script>
+</body>
+</html> 
