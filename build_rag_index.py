@@ -1,17 +1,15 @@
 # build_rag_index.py
 import os
 
-from document_loader import split_documents
 from langchain_community.vectorstores import FAISS
 
+from document_loader import load_pdf, load_website, split_documents
 from rag_retriever import embedding, refresh_fingerprint
 
-# Set user-agent for polite scraping
+# Set a polite user-agent BEFORE any web page is loaded below.
 os.environ["USER_AGENT"] = "VoiceAgentBot/1.0"
 
 # Load and split your documents
-from document_loader import load_pdf, load_website
-
 docs = load_pdf("example_docs/doc3.pdf") + load_website("https://www.linkedin.com/in/farid-oladega")
 chunks = split_documents(docs)
 
