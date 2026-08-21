@@ -1,8 +1,33 @@
+# ── Web server ─────────────────────────────────────────────
 fastapi
 uvicorn
-speechrecognition
-elevenlabs
+python-multipart
+
+# ── Speech-to-text (Google STT via SpeechRecognition) ──────
+SpeechRecognition
+
+# ── Text-to-speech (needs the modern SDK — the ElevenLabs client class) ──
+elevenlabs>=1.0
+
+# ── LangChain + local LLM (Ollama) ─────────────────────────
 langchain
-langchain_ollama
+langchain-community
+langchain-ollama
+
+# ── RAG: embeddings, vector store, document loading ────────
+langchain-huggingface
+sentence-transformers>=3.0  # older 2.x can't drive modern transformers/torch
+faiss-cpu
+pypdf
+beautifulsoup4
+
+# ── Config / secrets ───────────────────────────────────────
+python-dotenv
+
+# ── Audio utilities ────────────────────────────────────────
 pydub
-python-multipart 
+
+# NOTE: the command-line version (voice_Agent.py) also needs a microphone library:
+#   pip install pyaudio      (on macOS, first run:  brew install portaudio)
+# It is left out of the main list because it depends on a system audio library
+# and would otherwise break `pip install -r requirements.txt` on servers.

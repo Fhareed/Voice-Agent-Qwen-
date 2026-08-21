@@ -1,0 +1,7 @@
+# Code-style + lint config, shared by you locally and by CI.
+line-length = 100
+target-version = "py310"
+
+[lint]
+# E = style errors, F = real bugs (unused/undefined names), I = import order.
+select = ["E", "F", "I"]

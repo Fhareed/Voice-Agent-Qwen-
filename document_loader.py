@@ -1,14 +1,11 @@
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
     UnstructuredWordDocumentLoader,
     WebBaseLoader,
 )
-from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
-
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from pathlib import Path
-import os
 
 
 def load_pdf(path):

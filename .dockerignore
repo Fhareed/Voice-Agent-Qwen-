@@ -1,0 +1,22 @@
+# Keep secrets, junk, and bulky local-only files OUT of the container image.
+
+# Secrets — the real key must NEVER be baked into an image.
+.env
+
+# Version control & OS cruft
+.git
+.gitignore
+.DS_Store
+
+# Python caches / virtual envs
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+ENV/
+
+# Local scratch
+_to_delete/
+*.log
