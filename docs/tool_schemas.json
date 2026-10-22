@@ -1,0 +1,57 @@
+{
+  "_comment": "Paste these into your Retell (or Vapi) agent as custom tools/functions. Set the base URL to your deployed backend and add the header X-LumiDesk-Secret with your TOOLS_SHARED_SECRET. org_id should be set per-agent (one agent per business) as a constant argument or via the platform's dynamic variables.",
+  "base_url_example": "https://api.lumidesk.ai",
+  "required_header": { "X-LumiDesk-Secret": "<your TOOLS_SHARED_SECRET>" },
+  "tools": [
+    {
+      "name": "check_availability",
+      "description": "Get open appointment times for this business. Call this before offering the caller specific times. Returns a list of slots, each with a machine time (iso) and a spoken time.",
+      "url": "https://api.lumidesk.ai/tools/check_availability",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "org_id": { "type": "string", "description": "This business's id (set per agent)." },
+          "service": { "type": "string", "description": "What the caller wants, e.g. 'burst pipe', 'haircut'." },
+          "days": { "type": "integer", "description": "How many days ahead to search. Default 5." }
+        },
+        "required": ["org_id"]
+      }
+    },
+    {
+      "name": "book_appointment",
+      "description": "Book an appointment at an exact time you already offered from check_availability. Creates the calendar event and texts the caller a confirmation. Only call this once you have the caller's name, phone number, and a chosen time.",
+      "url": "https://api.lumidesk.ai/tools/book_appointment",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "org_id": { "type": "string", "description": "This business's id (set per agent)." },
+          "start": { "type": "string", "description": "The chosen slot's iso value returned by check_availability, e.g. '2026-09-22T08:00:00+03:00'." },
+          "customer_name": { "type": "string" },
+          "customer_phone": { "type": "string" },
+          "customer_email": { "type": "string" },
+          "service": { "type": "string" },
+          "notes": { "type": "string", "description": "Anything useful for the visit." },
+          "call_id": { "type": "string", "description": "The platform's call id, if available, to link the booking to the call." }
+        },
+        "required": ["org_id", "start", "customer_phone"]
+      }
+    },
+    {
+      "name": "send_sms",
+      "description": "Send the caller a text message (e.g. an address, a link, or a message). Booking already sends its own confirmation, so use this only for extra messages.",
+      "url": "https://api.lumidesk.ai/tools/send_sms",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "org_id": { "type": "string" },
+          "to": { "type": "string", "description": "The caller's phone number in E.164, e.g. +15550142." },
+          "message": { "type": "string" }
+        },
+        "required": ["org_id", "to", "message"]
+      }
+    }
+  ]
+}

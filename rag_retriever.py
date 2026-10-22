@@ -2,9 +2,23 @@ import hashlib
 import os
 
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 
-embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# The embedding model is loaded LAZILY (only the first time it's actually needed),
+# not when this module is imported. Loading it downloads/opens a ~90 MB model, so
+# keeping it lazy means importing this file (e.g. in tests or CI) stays fast.
+_embedding = None
+
+
+def get_embedding():
+    """Return the shared embedding model, loading it once on first use."""
+    global _embedding
+    if _embedding is None:
+        from langchain_huggingface import HuggingFaceEmbeddings
+
+        _embedding = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+    return _embedding
 
 # ---------------------------------------------------------------------------
 # SECURITY NOTE — why the extra code below exists
@@ -65,4 +79,6 @@ def _check_integrity(persist_path):
 def load_retriever(persist_path="rag_index"):
     _check_integrity(persist_path)
     # Safe here ONLY because we build this index ourselves and verify it above.
-    return FAISS.load_local(persist_path, embedding, allow_dangerous_deserialization=True)
+    return FAISS.load_local(
+        persist_path, get_embedding(), allow_dangerous_deserialization=True
+    )

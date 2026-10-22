@@ -1,18 +1,34 @@
-"""The knowledge-base 'memory', backed by the local FAISS index.
+"""The knowledge-base 'memory', backed by per-tenant local FAISS indexes.
 
-This wraps the existing rag_retriever so the app depends on the interface, not
-on FAISS directly. When we move to a networked vector DB (pgvector / Qdrant)
-later in the roadmap, only this file changes.
+This is a thin wrapper: the actual per-org build/retrieve logic lives in kb.py.
+The app depends on this provider interface, not on FAISS directly, so when we
+move to a networked vector DB (pgvector / Qdrant) later, only kb.py and this
+file change.
 """
-from rag_retriever import load_retriever
-
 from .base import VectorStoreProvider
 
 
 class FAISSStore(VectorStoreProvider):
-    def __init__(self, persist_path="rag_index"):
-        self._persist_path = persist_path
+    def get_retriever(self, org_id: str):
+        from kb import get_retriever_for_org
 
-    def get_retriever(self):
-        store = load_retriever(self._persist_path)
-        return store.as_retriever()
+        return get_retriever_for_org(org_id)
+
+    def build_index(self, org_id: str, *, texts=None, file_paths=None, urls=None) -> int:
+        from kb import build_index_for_org
+
+        return build_index_for_org(
+            org_id, texts=texts, file_paths=file_paths, urls=urls
+        )
+
+    def add_documents(self, org_id: str, *, texts=None, file_paths=None, urls=None) -> int:
+        from kb import add_documents_for_org
+
+        return add_documents_for_org(
+            org_id, texts=texts, file_paths=file_paths, urls=urls
+        )
+
+    def has_index(self, org_id: str) -> bool:
+        from kb import has_index
+
+        return has_index(org_id)

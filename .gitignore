@@ -81,3 +81,22 @@ coverage.xml
 .mypy_cache/
 .dmypy.json
 dmypy.json 
+# RAG / vector index data (per-tenant knowledge bases) — never commit
+rag_index/
+tenant_indexes/
+
+# Local runtime data / indexes (added during cleanup)
+demo_bookings.jsonl
+leads.jsonl
+tenant_indexes/
+rag_index/
+service-account*.json
+
+# Claude scratch / large output dumps — do not commit
+_lumidesk_tmp/
+Claude outputs/
+demo_server.py.bak_*
+demo_calls.jsonl
+
+# quarantined for deletion
+_to_delete/

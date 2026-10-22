@@ -12,7 +12,10 @@ elevenlabs>=1.0
 # ── LangChain + local LLM (Ollama) ─────────────────────────
 langchain
 langchain-community
+langchain-text-splitters  # text chunking (moved out of langchain core in 0.2+)
 langchain-ollama
+langchain-groq  # fast hosted LLM (set LLM_PROVIDER=groq)
+groq            # Groq SDK, also used for Whisper STT (set STT_PROVIDER=groq)
 
 # ── RAG: embeddings, vector store, document loading ────────
 langchain-huggingface
@@ -20,12 +23,26 @@ sentence-transformers>=3.0  # older 2.x can't drive modern transformers/torch
 faiss-cpu
 pypdf
 beautifulsoup4
+requests  # website-scrape onboarding (scrape.py)
 
 # ── Config / secrets ───────────────────────────────────────
 python-dotenv
 
+# ── Database (Supabase Postgres) ───────────────────────────
+sqlalchemy
+psycopg[binary]
+
+# ── Auth (Supabase Auth + JWT verification) ────────────────
+supabase
+pyjwt[crypto]
+
 # ── Audio utilities ────────────────────────────────────────
 pydub
+
+# ── Booking tools (voice agent -> real actions) ────────────
+google-api-python-client   # Google Calendar: free/busy + create events
+google-auth                # service-account credentials for the calendar
+twilio                     # SMS booking confirmations
 
 # NOTE: the command-line version (voice_Agent.py) also needs a microphone library:
 #   pip install pyaudio      (on macOS, first run:  brew install portaudio)

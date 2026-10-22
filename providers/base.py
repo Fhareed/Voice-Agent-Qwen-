@@ -36,8 +36,28 @@ class LLMProvider(ABC):
 
 
 class VectorStoreProvider(ABC):
-    """The 'memory': provides a retriever over the knowledge base."""
+    """The 'memory': a per-tenant knowledge base.
+
+    Every method takes an org_id, because in a B2B product each organization has
+    its own separate knowledge base — one company can never read another's.
+    """
 
     @abstractmethod
-    def get_retriever(self):
+    def get_retriever(self, org_id: str):
+        """Return a retriever over just this org's documents."""
+        ...
+
+    @abstractmethod
+    def build_index(self, org_id: str, *, texts=None, file_paths=None, urls=None) -> int:
+        """Build/replace this org's knowledge base. Returns chunks indexed."""
+        ...
+
+    @abstractmethod
+    def add_documents(self, org_id: str, *, texts=None, file_paths=None, urls=None) -> int:
+        """Add documents to this org's knowledge base (creates it if needed)."""
+        ...
+
+    @abstractmethod
+    def has_index(self, org_id: str) -> bool:
+        """True if this org already has a knowledge base."""
         ...

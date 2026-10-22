@@ -19,6 +19,9 @@ def get_stt() -> STTProvider:
     if provider == "google":
         from .google_stt import GoogleSTT
         return GoogleSTT()
+    if provider == "groq":
+        from .groq_stt import GroqWhisperSTT
+        return GroqWhisperSTT()
     raise ValueError(f"Unknown STT_PROVIDER: {provider}")
 
 
@@ -35,6 +38,9 @@ def get_llm_provider() -> LLMProvider:
     if provider == "ollama":
         from .ollama_llm import OllamaProvider
         return OllamaProvider()
+    if provider == "groq":
+        from .groq_llm import GroqProvider
+        return GroqProvider()
     raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
 
 

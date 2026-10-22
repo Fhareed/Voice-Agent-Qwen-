@@ -20,3 +20,14 @@ ENV/
 # Local scratch
 _to_delete/
 *.log
+
+# non-runtime (keep image lean)
+_to_delete/
+scripts/
+demo/
+docs/
+sql/
+samples/
+archive/
+website/
+outreach/

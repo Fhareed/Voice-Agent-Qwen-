@@ -1,0 +1,359 @@
+<title>LumiDesk Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --board-fg:#2E3140;
+  /* calm near-neutral backdrop (flattened from the crystal gradient) */
+  --board-grad:radial-gradient(1000px 600px at 15% -10%, rgba(255,255,255,.7), transparent 60%),linear-gradient(160deg,#ECEDF0 0%,#E6E7EB 100%);
+  --canvas:#F3F4F6; --card:#FFFFFF; --sidebar:#17181D;
+  --ink-900:#161616; --ink-700:#2A2A2E; --ink-500:#6B6B70; --ink-400:#8E8E92;
+  --hair:#E7E6EC; --line:#EDEEF1; --black-pill:#141414; --accent:#2F6BFF; --coral:#F26D6D; --good:#2BA564; --good-bg:#E4F6EC;
+  --booked:#AAB778; --booked-pill:#6E7A43; --booked-ink:#2E3317;
+  --new:#AFBEEC;   --new-pill:#5A6DD4;   --new-ink:#2F3A74;
+  --follow:#EDD77E; --follow-pill:#A9882F; --follow-ink:#5C4A18;
+  --resolved:#CCD5BB; --resolved-pill:#7E8A5E; --resolved-ink:#3A422A;
+  --urgent:#EFA6D0; --urgent-pill:#A94D88; --urgent-ink:#7E3D68;
+  --shadow-card:0 10px 28px rgba(23,23,23,.05),0 2px 6px rgba(23,23,23,.03);
+  --shadow-panel:0 40px 90px rgba(40,42,60,.18);
+  --shadow-lift:0 16px 32px rgba(30,34,60,.13);
+  --font:"Onest",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--board-fg:#C9CAD0;--board-grad:linear-gradient(160deg,#111218,#0C0D12);color-scheme:dark}}
+:root[data-theme="dark"]{--board-fg:#C9CAD0;--board-grad:linear-gradient(160deg,#111218,#0C0D12);color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--board-grad);background-attachment:fixed;color:var(--board-fg);font-family:var(--font);line-height:1.45;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;
+  padding:clamp(14px,3vw,34px) max(14px,env(safe-area-inset-left,0px)) clamp(20px,4vw,44px) max(14px,env(safe-area-inset-right,0px))}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.lu{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;width:20px;height:20px}
+.ava{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--font);line-height:1;letter-spacing:.3px;flex:0 0 auto}
+.ava .lu{color:#fff}
+
+.panel{max-width:1240px;margin:0 auto;background:var(--sidebar);border-radius:30px;overflow:hidden;box-shadow:var(--shadow-panel);display:grid;grid-template-columns:86px 1fr}
+
+.side{background:var(--sidebar);box-shadow:inset -1px 0 0 rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;gap:7px;padding:20px 0}
+.side .logo{width:40px;height:40px;border-radius:13px;background:linear-gradient(145deg,#6FA0FF,#2F6BFF);box-shadow:inset 0 1px 0 rgba(255,255,255,.4);margin-bottom:12px}
+.sideicon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;color:#86868E;transition:background .18s,color .18s}
+.sideicon .lu{width:21px;height:21px}
+.sideicon:hover{color:#D8D8DC;background:rgba(255,255,255,.06)}
+.sideicon.on{background:#EC9BD4;color:#2A1322}
+.side .sp{flex:1}
+.side .me{width:40px;height:40px;font-size:13px;background:#5B6CB0;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
+
+.content{background:
+    radial-gradient(760px 420px at 100% -8%, rgba(255,255,255,.6), transparent 55%),
+    linear-gradient(170deg,#F7F7F9 0%,#F1F2F5 100%);
+  padding:24px clamp(18px,3vw,32px) 32px;min-width:0}
+
+.top{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:20px}
+.greet h1{margin:0;font-size:clamp(24px,3.4vw,34px);font-weight:700;letter-spacing:-.03em;line-height:1.03;color:var(--ink-900)}
+.greet .sub{margin-top:5px;font-size:14px;color:var(--ink-500);font-weight:500}
+.greet .sub b{color:var(--ink-700);font-weight:700}
+.top .tools{margin-left:auto;display:flex;align-items:center;gap:10px}
+.searchbox{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:0 14px;height:44px;color:var(--ink-400);box-shadow:var(--shadow-card);min-width:200px}
+.searchbox .lu{width:18px;height:18px}
+.searchbox input{border:0;background:transparent;font-family:var(--font);font-size:13.5px;color:var(--ink-700);outline:none;width:100%}
+.searchbox kbd{font-size:11px;color:var(--ink-400);background:var(--canvas);border-radius:6px;padding:2px 6px;font-family:var(--font)}
+.circbtn{width:44px;height:44px;border-radius:12px;background:var(--card);border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink-500);position:relative;box-shadow:var(--shadow-card)}
+.circbtn .dot{position:absolute;top:10px;right:11px;width:7px;height:7px;border-radius:50%;background:var(--coral);border:2px solid var(--card)}
+.datepill{display:inline-flex;align-items:center;gap:9px;background:var(--black-pill);color:#fff;border-radius:12px;padding:0 16px;height:44px;font-size:13.5px;font-weight:600}
+.datepill .lu{width:16px;height:16px;opacity:.85}
+
+/* compact stat row (density, receptionist metrics) */
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.stat{background:var(--card);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow-card);display:flex;align-items:center;gap:12px}
+.stat-l{flex:1;min-width:0}
+.stat .lab{font-size:12.5px;color:var(--ink-500);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .big{display:flex;align-items:baseline;gap:8px;margin-top:6px}
+.stat .big b{font-size:24px;font-weight:700;letter-spacing:-.03em;color:var(--ink-900);line-height:1}
+.delta{font-size:11px;font-weight:700;color:var(--good);background:var(--good-bg);border-radius:999px;padding:2px 7px}
+.stat .vs{font-size:11px;color:var(--ink-400);font-weight:500}
+.spark{display:flex;align-items:flex-end;gap:3px;height:34px;width:clamp(72px,32%,120px);flex:0 0 auto}
+.spark i{flex:1;border-radius:3px;background:var(--s2);min-height:4px}
+.spark i:nth-child(odd){background:var(--s1)}
+.sp-blue{--s1:#3E6FF0;--s2:#C2D2F8}.sp-green{--s1:#2BA564;--s2:#C2E7D1}.sp-slate{--s1:#64748B;--s2:#D3D9E2}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 308px;gap:20px;align-items:start}
+.live{grid-column:1 / -1;background:var(--black-pill);color:#fff;border-radius:18px;padding:15px 18px;display:flex;align-items:center;gap:14px}
+.live .pulse{width:10px;height:10px;border-radius:50%;background:#55D98A;flex:0 0 auto;animation:beat 1.6s ease-in-out infinite}
+@keyframes beat{0%,100%{box-shadow:0 0 0 0 rgba(85,217,138,.5)}50%{box-shadow:0 0 0 6px rgba(85,217,138,0)}}
+.live .lt{min-width:0}.live .lt b{font-weight:700;font-size:14.5px;letter-spacing:-.01em}
+.live .lt span{display:block;color:#B7B7BD;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live .timer{margin-left:auto;font-size:14px;font-weight:700;background:rgba(255,255,255,.12);border-radius:999px;padding:5px 13px;flex:0 0 auto}
+.live .listen{flex:0 0 auto;background:#fff;color:#141414;border-radius:999px;padding:8px 15px;font-size:13px;font-weight:700}
+
+.callshead{display:flex;align-items:center;gap:10px;margin:2px 2px 10px}
+.callshead h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em;color:var(--ink-900)}
+.callshead .more{margin-left:auto;font-size:13px;color:var(--accent);font-weight:600}
+.tabs{display:flex;gap:7px;margin:0 0 14px;flex-wrap:wrap}
+.tabs span{font-size:12.5px;color:var(--ink-500);padding:7px 13px;border-radius:999px;font-weight:600;background:var(--card);border:1px solid var(--hair);display:inline-flex;align-items:center;gap:6px;cursor:default}
+.tabs span i{font-style:normal;font-size:11px;opacity:.7;font-weight:700}
+.tabs span.on{background:var(--ink-900);color:#fff;border-color:transparent}
+.tabs span.on i{opacity:.75}
+
+.calls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:1040px){.grid{grid-template-columns:1fr}.statrow{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.calls{grid-template-columns:1fr}.statrow{grid-template-columns:1fr}}
+
+.card{background:var(--c);border-radius:22px;padding:16px 17px;position:relative;transform-style:preserve-3d;will-change:transform;box-shadow:0 2px 10px rgba(40,44,72,.05);transition:transform .22s cubic-bezier(.2,.7,.2,1),box-shadow .22s ease;cursor:default}
+.card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;opacity:0;transition:opacity .22s;mix-blend-mode:soft-light;background:radial-gradient(260px circle at var(--gx,50%) var(--gy,50%), rgba(255,255,255,.6), transparent 60%)}
+.card:hover{transform:translateY(-4px);box-shadow:0 26px 50px -10px color-mix(in srgb,var(--c) 60%, transparent),0 10px 22px rgba(23,23,23,.08)}
+.card:hover::after{opacity:1}
+.card .r1{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.pill{font-size:11px;font-weight:700;color:#fff;background:var(--p);border-radius:999px;padding:5px 11px;letter-spacing:.01em;line-height:1}
+.card .time{margin-left:auto;font-size:12px;font-weight:600;color:var(--i);opacity:.7}
+.card .who{font-size:16px;font-weight:700;letter-spacing:-.015em;color:var(--i);line-height:1.2}
+.card .snip{font-size:13px;font-weight:500;color:var(--i);opacity:.82;line-height:1.45;margin-top:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:2.6em}
+.card .r3{display:flex;align-items:center;gap:10px;margin-top:12px}
+.card .ava{width:32px;height:32px;font-size:11.5px;box-shadow:0 0 0 2.5px var(--c)}
+.card .ava.unknown{background:#9AA0AB}
+.card .tag{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--i);opacity:.82}
+.card .tag .lu{width:15px;height:15px}
+.c-booked{--c:var(--booked);--p:var(--booked-pill);--i:var(--booked-ink)}
+.c-new{--c:var(--new);--p:var(--new-pill);--i:var(--new-ink)}
+.c-follow{--c:var(--follow);--p:var(--follow-pill);--i:var(--follow-ink)}
+.c-resolved{--c:var(--resolved);--p:var(--resolved-pill);--i:var(--resolved-ink);opacity:.9}
+.c-urgent{--c:var(--urgent);--p:var(--urgent-pill);--i:var(--urgent-ink)}
+
+.rail-col{display:flex;flex-direction:column;gap:16px}
+.wpanel{background:var(--card);border-radius:22px;box-shadow:var(--shadow-card);padding:19px}
+.wpanel h3{margin:0 0 2px;font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--ink-900)}
+.wpanel .cap{font-size:12.5px;color:var(--ink-400);font-weight:500}
+.gauge{position:relative;margin:6px auto 2px;max-width:210px}
+.gaugesvg{display:block;width:100%;height:auto;overflow:visible}
+.gval{position:absolute;left:0;right:0;bottom:4px;text-align:center}
+.gval b{display:block;font-size:28px;font-weight:700;letter-spacing:-.03em;color:var(--ink-900);line-height:1}
+.gval span{font-size:12px;font-weight:600;color:var(--ink-500)}
+.gfoot{text-align:center;font-size:12.5px;color:var(--ink-500);font-weight:600;margin-top:8px}
+.ringrow{display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid var(--hair)}
+.ringrow:first-of-type{border-top:0}
+.ring{position:relative;width:46px;height:46px;flex:0 0 auto}
+.ring svg{display:block;transform:rotate(-90deg)}
+.ring .rv{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;font-weight:700;color:var(--ink-900)}
+.ringrow .t b{display:block;font-size:13.5px;font-weight:700;letter-spacing:-.01em;color:var(--ink-700)}
+.ringrow .t span{font-size:12px;color:var(--ink-400);font-weight:500}
+.followlist{display:flex;flex-direction:column}
+.fl{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--hair)}
+.fl:first-child{border-top:0}
+.fl .ava{width:30px;height:30px;font-size:11px}
+.fl .t{min-width:0;flex:1}
+.fl .t b{display:block;font-size:13px;font-weight:700;color:var(--ink-700);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fl .t span{font-size:11.5px;color:var(--ink-400);font-weight:500}
+.fl .cb{color:var(--accent);border:1px solid var(--hair);border-radius:9px;width:30px;height:30px;display:grid;place-items:center;flex:0 0 auto}
+.fl .cb .lu{width:15px;height:15px}
+.team{display:flex;align-items:center;gap:0;margin-top:4px}
+.team .ava{width:36px;height:36px;font-size:11.5px;box-shadow:0 0 0 2.5px var(--card);margin-left:-10px}
+.team .ava:first-child{margin-left:0}
+.team .plus{width:36px;height:36px;border-radius:50%;margin-left:-10px;border:1.5px dashed #B9B2A0;color:var(--ink-500);font-size:11.5px;font-weight:700;display:grid;place-items:center;background:var(--canvas)}
+.team-cap{font-size:12px;color:var(--ink-400);font-weight:500;margin-top:11px}
+
+.note{max-width:1240px;margin:16px auto 0;font-size:12.5px;color:var(--board-fg);opacity:.7;text-align:center;line-height:1.5}
+
+@media (max-width:1040px){.panel{grid-template-columns:70px 1fr}.sideicon{width:42px;height:42px}}
+@media (max-width:760px){
+  .panel{grid-template-columns:1fr;border-radius:22px}
+  .side{flex-direction:row;gap:6px;padding:12px;overflow-x:auto}
+  .side .logo,.side .sp,.side .me{display:none}
+  .searchbox{min-width:0;width:44px;padding:0}.searchbox input,.searchbox kbd{display:none}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+<symbol id="i-calendar-check" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-3"/><path d="M12 16v-6"/><path d="M17 16v-9"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+</defs></svg>
+
+<div class="panel">
+  <nav class="side">
+    <div class="logo"></div>
+    <div class="sideicon" title="Home"><svg class="lu"><use href="#i-home"/></svg></div>
+    <div class="sideicon on" title="Calls"><svg class="lu"><use href="#i-phone"/></svg></div>
+    <div class="sideicon" title="Bookings"><svg class="lu"><use href="#i-calendar"/></svg></div>
+    <div class="sideicon" title="Knowledge"><svg class="lu"><use href="#i-book"/></svg></div>
+    <div class="sideicon" title="Customers"><svg class="lu"><use href="#i-users"/></svg></div>
+    <div class="sideicon" title="Reports"><svg class="lu"><use href="#i-chart"/></svg></div>
+    <div class="sideicon" title="Settings"><svg class="lu"><use href="#i-settings"/></svg></div>
+    <div class="sp"></div>
+    <span class="ava me">JV</span>
+  </nav>
+
+  <main class="content">
+    <div class="top">
+      <div class="greet">
+        <h1>Good morning, Jarmo</h1>
+        <div class="sub"><b>3 new calls</b> while you were out · 2 booked themselves in</div>
+      </div>
+      <div class="tools">
+        <label class="searchbox"><svg class="lu"><use href="#i-search"/></svg><input placeholder="Search calls, customers…"><kbd>⌘K</kbd></label>
+        <button class="circbtn" aria-label="Notifications"><span class="dot"></span><svg class="lu"><use href="#i-bell"/></svg></button>
+        <span class="datepill"><svg class="lu"><use href="#i-calendar"/></svg>Today · 22 Oct</span>
+      </div>
+    </div>
+
+    <div class="statrow">
+      <div class="stat"><div class="stat-l"><div class="lab">Calls today</div><div class="big"><b>18</b><span class="delta">+12%</span></div></div><div class="spark sp-blue"><i style="height:36%"></i><i style="height:50%"></i><i style="height:42%"></i><i style="height:58%"></i><i style="height:48%"></i><i style="height:66%"></i><i style="height:56%"></i><i style="height:76%"></i><i style="height:66%"></i></div></div>
+      <div class="stat"><div class="stat-l"><div class="lab">Booked today</div><div class="big"><b>7</b><span class="delta">+2</span></div></div><div class="spark sp-green"><i style="height:30%"></i><i style="height:40%"></i><i style="height:36%"></i><i style="height:50%"></i><i style="height:46%"></i><i style="height:58%"></i><i style="height:54%"></i><i style="height:64%"></i><i style="height:60%"></i></div></div>
+      <div class="stat"><div class="stat-l"><div class="lab">Avg. answer time</div><div class="big"><b>1.8s</b><span class="vs">picks up on the first ring</span></div></div><div class="spark sp-slate"><i style="height:30%"></i><i style="height:28%"></i><i style="height:32%"></i><i style="height:26%"></i><i style="height:30%"></i><i style="height:24%"></i><i style="height:28%"></i><i style="height:26%"></i><i style="height:30%"></i></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="live">
+        <span class="pulse"></span>
+        <div class="lt"><b>On a call now — Päivi Korhonen</b><span>Asking whether you cover Kempele for a blocked drain…</span></div>
+        <span class="timer">00:48</span>
+        <span class="listen">Listen in</span>
+      </div>
+
+      <div style="min-width:0">
+        <div class="callshead"><h2>Recent calls</h2><span class="more">View all</span></div>
+        <div class="tabs">
+          <span class="on">All <i>12</i></span><span>Unresolved <i>4</i></span><span>Booked <i>5</i></span><span>Follow-up <i>2</i></span>
+        </div>
+        <div class="calls">
+
+          <div class="card c-booked">
+            <div class="r1"><span class="pill">Booked</span><span class="time">2 min ago · 1m 48s · FI</span></div>
+            <div class="who">Mika Virtanen</div>
+            <div class="snip">Burst pipe under the kitchen sink, water on the floor. Booked the 8:00 slot tomorrow.</div>
+            <div class="r3"><span class="ava" style="background:#64748B">MV</span><span class="tag"><svg class="lu"><use href="#i-calendar-check"/></svg>Tomorrow 8:00</span></div>
+          </div>
+
+          <div class="card c-urgent">
+            <div class="r1"><span class="pill">Urgent</span><span class="time">40 min ago · 2m 10s · FI</span></div>
+            <div class="who">Laura Mäkelä</div>
+            <div class="snip">No hot water since morning, elderly tenant in the flat. Needs a same-day callout.</div>
+            <div class="r3"><span class="ava" style="background:#B5697A">LM</span><span class="tag">Needs a slot</span></div>
+          </div>
+
+          <div class="card c-new">
+            <div class="r1"><span class="pill">New</span><span class="time">18 min ago · 1m 02s · FI</span></div>
+            <div class="who">+358 44 712 9908</div>
+            <div class="snip">Quote for a new water heater. Wants a callback with pricing this afternoon.</div>
+            <div class="r3"><span class="ava unknown"><svg class="lu" style="width:16px;height:16px"><use href="#i-user"/></svg></span><span class="tag">Callback requested</span></div>
+          </div>
+
+          <div class="card c-booked">
+            <div class="r1"><span class="pill">Booked</span><span class="time">1 h ago · 2m 35s · EN</span></div>
+            <div class="who">Sofia Koivu</div>
+            <div class="snip">Radiator not heating in one room. Booked a diagnostic visit for Thursday afternoon.</div>
+            <div class="r3"><span class="ava" style="background:#3F8F86">SK</span><span class="tag"><svg class="lu"><use href="#i-calendar-check"/></svg>Thu 15:00</span></div>
+          </div>
+
+          <div class="card c-follow">
+            <div class="r1"><span class="pill">Follow-up</span><span class="time">2 h ago · 1m 20s · FI</span></div>
+            <div class="who">Antti Nieminen</div>
+            <div class="snip">Bathroom renovation question — wants a site visit to quote. No slot yet.</div>
+            <div class="r3"><span class="ava" style="background:#A9795A">AN</span><span class="tag">Call back</span></div>
+          </div>
+
+          <div class="card c-resolved">
+            <div class="r1"><span class="pill">Resolved</span><span class="time">3 h ago · 0m 44s · FI</span></div>
+            <div class="who">Tomi Heikkilä</div>
+            <div class="snip">Just checking opening hours for Saturday. Answered — no visit needed.</div>
+            <div class="r3"><span class="ava" style="background:#7E6A99">TH</span><span class="tag">Closed</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="rail-col">
+        <div class="wpanel">
+          <h3>Today at a glance</h3>
+          <div class="cap">How many calls turned into something</div>
+          <div class="gauge">
+            <svg class="gaugesvg" viewBox="0 0 208 108">
+              <line x1="44.2" y1="94.8" x2="24.3" y2="93.0" stroke="#A3AF72" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="46.0" y1="84.5" x2="26.7" y2="79.3" stroke="#AEBEEC" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="49.6" y1="74.6" x2="31.5" y2="66.2" stroke="#EBD57B" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="54.9" y1="65.6" x2="38.5" y2="54.1" stroke="#EC9BCF" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="61.6" y1="57.6" x2="47.4" y2="43.4" stroke="#A3AF72" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="69.6" y1="50.9" x2="58.1" y2="34.5" stroke="#AEBEEC" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="78.6" y1="45.6" x2="70.2" y2="27.5" stroke="#EBD57B" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="88.5" y1="42.0" x2="83.3" y2="22.7" stroke="#EC9BCF" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="98.8" y1="40.2" x2="97.0" y2="20.3" stroke="#A3AF72" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="109.2" y1="40.2" x2="111.0" y2="20.3" stroke="#AEBEEC" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="119.5" y1="42.0" x2="124.7" y2="22.7" stroke="#EBD57B" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="129.4" y1="45.6" x2="137.8" y2="27.5" stroke="#EC9BCF" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="138.4" y1="50.9" x2="149.9" y2="34.5" stroke="#A3AF72" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="146.4" y1="57.6" x2="160.6" y2="43.4" stroke="#AEBEEC" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="153.1" y1="65.6" x2="169.5" y2="54.1" stroke="#E6DEC9" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="158.4" y1="74.6" x2="176.5" y2="66.2" stroke="#E6DEC9" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="162.0" y1="84.5" x2="181.3" y2="79.3" stroke="#E6DEC9" stroke-width="7.5" stroke-linecap="round"/>
+              <line x1="163.8" y1="94.8" x2="183.7" y2="93.0" stroke="#E6DEC9" stroke-width="7.5" stroke-linecap="round"/>
+            </svg>
+            <div class="gval"><b>78%</b><span>handled</span></div>
+          </div>
+          <div class="gfoot">14 of 18 calls booked or resolved</div>
+        </div>
+
+        <div class="wpanel">
+          <h3>Needs follow-up</h3>
+          <div class="cap" style="margin-bottom:4px">Calls that still need you</div>
+          <div class="followlist">
+            <div class="fl"><span class="ava" style="background:#B5697A">LM</span><div class="t"><b>Laura Mäkelä</b><span>No hot water · same-day</span></div><span class="cb"><svg class="lu"><use href="#i-phone"/></svg></span></div>
+            <div class="fl"><span class="ava" style="background:#A9795A">AN</span><div class="t"><b>Antti Nieminen</b><span>Bathroom quote visit</span></div><span class="cb"><svg class="lu"><use href="#i-phone"/></svg></span></div>
+            <div class="fl"><span class="ava unknown"><svg class="lu" style="width:15px;height:15px"><use href="#i-user"/></svg></span><div class="t"><b>+358 44 712 9908</b><span>Water heater pricing</span></div><span class="cb"><svg class="lu"><use href="#i-phone"/></svg></span></div>
+          </div>
+        </div>
+
+        <div class="wpanel">
+          <h3>This week</h3>
+          <div class="cap" style="margin-bottom:6px">Mon–Sun</div>
+          <div class="ringrow">
+            <div class="ring"><svg width="46" height="46"><circle cx="23" cy="23" r="19" fill="none" stroke="#ECECEC" stroke-width="5"/><circle cx="23" cy="23" r="19" fill="none" stroke="#6E7A43" stroke-width="5" stroke-linecap="round" stroke-dasharray="112.2 119.4"/></svg><span class="rv">94</span></div>
+            <div class="t"><b>Calls answered</b><span>of 212 inbound</span></div>
+          </div>
+          <div class="ringrow">
+            <div class="ring"><svg width="46" height="46"><circle cx="23" cy="23" r="19" fill="none" stroke="#ECECEC" stroke-width="5"/><circle cx="23" cy="23" r="19" fill="none" stroke="#5A6DD4" stroke-width="5" stroke-linecap="round" stroke-dasharray="72.8 119.4"/></svg><span class="rv">61</span></div>
+            <div class="t"><b>Turned into bookings</b><span>128 jobs on the calendar</span></div>
+          </div>
+        </div>
+
+        <div class="wpanel">
+          <h3>Your team</h3>
+          <div class="cap" style="margin-bottom:10px">Who picks up the booked jobs</div>
+          <div class="team">
+            <span class="ava" style="background:#64748B">JV</span>
+            <span class="ava" style="background:#3F8F86">EK</span>
+            <span class="ava" style="background:#A9795A">MS</span>
+            <span class="ava" style="background:#7E6A99">SA</span>
+            <span class="plus">+3</span>
+          </div>
+          <div class="team-cap">7 plumbers · Oulu &amp; Kempele</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<p class="note">Mockup — example data for a fictional “PriceVilla” plumber in Oulu. Onest typeface, official Lucide icons, initials avatars.</p>
+<script>
+(function(){
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  document.querySelectorAll('.card').forEach(function(card){
+    card.addEventListener('mousemove', function(e){
+      var r=card.getBoundingClientRect();
+      var px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+      card.style.transform='perspective(760px) rotateX('+((0.5-py)*9).toFixed(2)+'deg) rotateY('+((px-0.5)*11).toFixed(2)+'deg) translateY(-5px) scale(1.025)';
+      card.style.setProperty('--gx',(px*100).toFixed(1)+'%');
+      card.style.setProperty('--gy',(py*100).toFixed(1)+'%');
+    });
+    card.addEventListener('mouseleave', function(){card.style.transform='';});
+  });
+})();
+</script>

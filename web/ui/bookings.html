@@ -1,0 +1,373 @@
+<title>LumiDesk Bookings</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --board-fg:#2E3140;
+  --board-grad:radial-gradient(1000px 600px at 15% -10%, rgba(255,255,255,.7), transparent 60%),linear-gradient(160deg,#ECEDF0 0%,#E6E7EB 100%);
+  --canvas:#F3F4F6; --card:#FFFFFF; --sidebar:#17181D;
+  --ink-900:#161616; --ink-700:#2A2A2E; --ink-500:#6B6B70; --ink-400:#8E8E92;
+  --hair:#E7E6EC; --line:#EDEEF1; --black-pill:#141414; --accent:#2F6BFF; --coral:#F26D6D;
+  --good:#2BA564; --good-bg:#E4F6EC;
+  --pink:#FBE1EF;   --pink-bar:#E07AB0;  --pink-ink:#8A2E63;
+  --purple:#ECE3FB; --purple-bar:#8B6FD8;--purple-ink:#4A3A86;
+  --green:#D8F0E2;  --green-bar:#3FB36B; --green-ink:#1E6B42;
+  --yellow:#FBF0CE; --yellow-bar:#D4A52E;--yellow-ink:#7A5E12;
+  --peach:#FCE4D6;  --peach-bar:#E8834E; --peach-ink:#8A4A22;
+  --blue:#DCEAFB;   --blue-bar:#3E86E8;  --blue-ink:#1E4FA0;
+  --shadow-card:0 10px 28px rgba(23,23,23,.05),0 2px 6px rgba(23,23,23,.03);
+  --shadow-panel:0 40px 90px rgba(40,42,60,.18);
+  --font:"Onest",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --hour:62px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--board-fg:#C9CAD0;--board-grad:linear-gradient(160deg,#111218,#0C0D12);color-scheme:dark}}
+:root[data-theme="dark"]{--board-fg:#C9CAD0;--board-grad:linear-gradient(160deg,#111218,#0C0D12);color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--board-grad);background-attachment:fixed;color:var(--board-fg);font-family:var(--font);line-height:1.45;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;
+  padding:clamp(14px,3vw,34px) max(14px,env(safe-area-inset-left,0px)) clamp(20px,4vw,44px) max(14px,env(safe-area-inset-right,0px))}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.lu{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;width:20px;height:20px}
+.lu-dot{fill:currentColor;stroke:none;display:block;width:20px;height:20px}
+.ava{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--font);line-height:1;letter-spacing:.3px;flex:0 0 auto}
+.ava .lu{color:#fff}
+
+.panel{max-width:1340px;margin:0 auto;background:var(--sidebar);border-radius:30px;overflow:hidden;box-shadow:var(--shadow-panel);display:grid;grid-template-columns:86px 1fr}
+
+.side{background:var(--sidebar);box-shadow:inset -1px 0 0 rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;gap:7px;padding:20px 0}
+.side .logo{width:40px;height:40px;border-radius:13px;background:linear-gradient(145deg,#6FA0FF,#2F6BFF);box-shadow:inset 0 1px 0 rgba(255,255,255,.4);margin-bottom:12px}
+.sideicon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;color:#86868E;transition:background .18s,color .18s}
+.sideicon .lu{width:21px;height:21px}
+.sideicon:hover{color:#D8D8DC;background:rgba(255,255,255,.06)}
+.sideicon.on{background:#EC9BD4;color:#2A1322}
+.side .sp{flex:1}
+.side .me{width:40px;height:40px;font-size:13px;background:#5B6CB0;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
+
+.main{position:relative;min-width:0}
+.work{background:
+    radial-gradient(760px 420px at 100% -8%, rgba(255,255,255,.6), transparent 55%),
+    linear-gradient(170deg,#F7F7F9 0%,#F1F2F5 100%);
+  padding:22px clamp(16px,2.4vw,26px) 24px;min-width:0;display:flex;flex-direction:column}
+
+.whead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.whead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.03em;color:var(--ink-900)}
+.whead .loc{margin-left:auto;display:flex;align-items:center;gap:9px}
+.circbtn{width:42px;height:42px;border-radius:12px;background:var(--card);border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink-500);box-shadow:var(--shadow-card);position:relative}
+.circbtn .dot{position:absolute;top:10px;right:11px;width:7px;height:7px;border-radius:50%;background:var(--coral);border:2px solid var(--card)}
+
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.todaybtn{background:var(--card);border:1px solid var(--hair);border-radius:11px;padding:8px 15px;font-size:13.5px;font-weight:700;color:var(--ink-700);box-shadow:var(--shadow-card)}
+.monthnav{display:flex;align-items:center;gap:4px;font-size:15px;font-weight:700;color:var(--ink-900)}
+.monthnav .nv{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:var(--ink-500);background:var(--card);border:1px solid var(--hair)}
+.monthnav .nv .lu{width:15px;height:15px}
+.seg{display:flex;background:#E4E6EB;border-radius:11px;padding:3px;gap:2px;margin-left:6px}
+.seg span{font-size:13px;padding:7px 14px;border-radius:8px;color:var(--ink-500);font-weight:700}
+.seg span.on{background:var(--card);color:var(--ink-900);box-shadow:var(--shadow-card)}
+.filter{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--hair);border-radius:11px;padding:8px 13px;font-size:13px;font-weight:600;color:var(--ink-700);box-shadow:var(--shadow-card)}
+.filter .lu{width:16px;height:16px;opacity:.7}
+.filter .ch{width:14px;height:14px;opacity:.5}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:18px}
+.stat{background:var(--card);border-radius:16px;padding:15px 17px;box-shadow:var(--shadow-card);position:relative;display:flex;align-items:center;gap:14px;transform-style:preserve-3d;will-change:transform;transition:transform .22s cubic-bezier(.2,.7,.2,1),box-shadow .22s}
+.stat::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .22s;mix-blend-mode:soft-light;background:radial-gradient(220px circle at var(--gx,50%) var(--gy,50%), rgba(255,255,255,.7), transparent 60%)}
+.stat:hover::after{opacity:1}
+.stat-l{flex:1;min-width:0}
+.stat .lab{font-size:12.5px;color:var(--ink-500);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .sub{color:var(--ink-400);font-weight:500}
+.stat .big{display:flex;align-items:baseline;gap:9px;margin:8px 0 2px}
+.stat .big b{font-size:26px;font-weight:700;letter-spacing:-.03em;color:var(--ink-900);line-height:1}
+.delta{font-size:11px;font-weight:700;color:var(--good);background:var(--good-bg);border-radius:999px;padding:3px 8px}
+.delta.neg{color:#B3541F;background:#FBE8DC}
+.stat .vs{font-size:11px;color:var(--ink-400);font-weight:500}
+.spark{display:flex;align-items:flex-end;gap:3px;height:42px;width:clamp(92px,30%,196px);flex:0 0 auto}
+.spark i{flex:1;border-radius:3px;background:var(--s2,#cdd);min-height:5px}
+.spark i:nth-child(odd){background:var(--s1,#88a)}
+.sp-blue{--s1:#3E6FF0;--s2:#C2D2F8}.sp-green{--s1:#2BA564;--s2:#C2E7D1}.sp-peach{--s1:#E8834E;--s2:#F7D4C1}
+
+.cal{background:var(--card);border-radius:20px;box-shadow:var(--shadow-card);overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0}
+.dayhead{display:grid;grid-template-columns:54px repeat(5,1fr);border-bottom:1px solid var(--line)}
+.dayhead .tz{font-size:10.5px;color:var(--ink-400);font-weight:600;display:flex;align-items:flex-end;justify-content:center;padding:0 0 10px}
+.dayhead .dh{padding:12px 14px;border-left:1px solid var(--line);display:flex;align-items:center;gap:9px}
+.dayhead .dh .dnum{font-size:20px;font-weight:700;letter-spacing:-.02em;color:var(--ink-700)}
+.dayhead .dh .dmeta{line-height:1.15}
+.dayhead .dh .dmeta b{font-size:12px;font-weight:700;color:var(--ink-700);text-transform:uppercase;letter-spacing:.02em}
+.dayhead .dh .dmeta span{display:block;font-size:11px;color:var(--ink-400);font-weight:500}
+.dayhead .dh.today .dnum{background:var(--accent);color:#fff;border-radius:10px;padding:1px 9px}
+.dayhead .dh.today .dmeta b{color:var(--accent)}
+.calbody{display:grid;grid-template-columns:54px repeat(5,1fr);overflow:auto;position:relative}
+.timecol{position:relative}
+.timecol .tl{height:var(--hour);position:relative}
+.timecol .tl span{position:absolute;top:-7px;right:8px;font-size:10.5px;color:var(--ink-400);font-weight:600}
+.daycol{position:relative;border-left:1px solid var(--line);
+  background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--hour) - 1px), var(--line) calc(var(--hour) - 1px), var(--line) var(--hour))}
+.nowline{position:absolute;left:0;right:0;height:2px;background:var(--coral);z-index:4}
+.nowline::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--coral)}
+.appt{position:absolute;left:5px;right:5px;border-radius:9px;padding:6px 9px 6px 11px;overflow:hidden;cursor:pointer;
+  background:var(--f);box-shadow:inset 3px 0 0 var(--b);transition:transform .16s,box-shadow .16s;z-index:2}
+.appt:hover{transform:translateY(-1px) scale(1.012);box-shadow:inset 3px 0 0 var(--b),0 10px 20px rgba(30,34,60,.14);z-index:5}
+.appt .at{font-size:11px;font-weight:700;color:var(--k);line-height:1.25}
+.appt .an{font-size:12px;font-weight:700;color:var(--k);letter-spacing:-.01em}
+.appt .as{font-size:11px;color:var(--k);opacity:.78;font-weight:500}
+.appt.sel{background:var(--accent);box-shadow:0 0 0 2px #fff,0 10px 22px rgba(47,107,255,.4);z-index:6}
+.appt.sel .at,.appt.sel .an,.appt.sel .as{color:#fff;opacity:1}
+.appt.sel .as{opacity:.85}
+.f-pink{--f:var(--pink);--b:var(--pink-bar);--k:var(--pink-ink)}
+.f-purple{--f:var(--purple);--b:var(--purple-bar);--k:var(--purple-ink)}
+.f-green{--f:var(--green);--b:var(--green-bar);--k:var(--green-ink)}
+.f-yellow{--f:var(--yellow);--b:var(--yellow-bar);--k:var(--yellow-ink)}
+.f-peach{--f:var(--peach);--b:var(--peach-bar);--k:var(--peach-ink)}
+.f-blue{--f:var(--blue);--b:var(--blue-bar);--k:var(--blue-ink)}
+
+.scrim{position:absolute;inset:0;background:rgba(18,22,38,.20);opacity:0;visibility:hidden;transition:opacity .25s ease;z-index:15}
+.scrim.open{opacity:1;visibility:visible}
+.detail{position:absolute;top:14px;right:14px;bottom:auto;height:auto;max-height:calc(100% - 28px);width:min(366px,92%);
+  background:var(--card);border-radius:20px;display:flex;flex-direction:column;min-width:0;overflow:auto;z-index:20;
+  transform:translateX(calc(100% + 24px));transition:transform .3s cubic-bezier(.2,.8,.2,1);
+  box-shadow:0 20px 60px rgba(20,24,40,.22),0 2px 8px rgba(20,24,40,.08)}
+.detail.open{transform:translateX(0)}
+.dclose{position:absolute;top:11px;right:12px;width:30px;height:30px;border-radius:10px;border:0;background:rgba(255,255,255,.22);color:#fff;display:grid;place-items:center;cursor:pointer;z-index:2}
+.dclose .lu{width:17px;height:17px}
+.dstatus{color:#fff;font-weight:700;font-size:14px;text-align:center;padding:13px;display:flex;align-items:center;justify-content:center;gap:7px}
+.dstatus .lu{width:16px;height:16px}
+.dbody{padding:18px 20px;display:flex;flex-direction:column;gap:16px}
+.dcust{display:flex;align-items:center;gap:12px}
+.dcust .ava{width:42px;height:42px;font-size:15px;box-shadow:0 0 0 2px #fff,0 2px 6px rgba(0,0,0,.08)}
+.dcust .nm{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--ink-900)}
+.dcust .ph{font-size:12.5px;color:var(--ink-400);font-weight:500}
+.dcust .edit{margin-left:auto;width:34px;height:34px;border-radius:11px;border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink-500)}
+.dcust .edit .lu{width:15px;height:15px}
+.dtime{display:flex;align-items:center;gap:11px;border-top:1px solid var(--line);padding-top:15px}
+.dtime .ic{width:34px;height:34px;border-radius:10px;background:#F1F3F9;display:grid;place-items:center;color:var(--ink-500);flex:0 0 auto}
+.dtime .ic .lu{width:17px;height:17px}
+.dtime .tt b{font-size:15px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}
+.dtime .tt span{display:block;font-size:12px;color:var(--ink-400);font-weight:500}
+.dtime .st{margin-left:auto;font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 11px}
+.dnote{background:#F5F6FA;border-radius:12px;padding:11px 13px;font-size:13px;color:var(--ink-500);font-weight:500;border-left:3px solid var(--accent)}
+.dacts{display:flex;gap:10px}
+.dbtn{flex:1;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;box-shadow:0 8px 18px rgba(47,107,255,.26);display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.dbtn .lu{width:17px;height:17px}
+.dmore{width:48px;border-radius:12px;border:1px solid var(--hair);background:var(--card);color:var(--ink-500);cursor:pointer;display:grid;place-items:center}
+.dmore .lu{width:18px;height:18px}
+.dsec h4{margin:0 0 6px;font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--ink-900)}
+.facts{display:flex;flex-direction:column}
+.fact{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.fact:first-child{border-top:0}
+.fact .ic{width:34px;height:34px;border-radius:10px;background:#F1F3F9;display:grid;place-items:center;color:var(--ink-500);flex:0 0 auto}
+.fact .ic .lu{width:17px;height:17px}
+.fact .l{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-400);font-weight:700}
+.fact .v{font-size:13.5px;color:var(--ink-700);font-weight:600;letter-spacing:-.01em;margin-top:1px}
+
+.note{max-width:1340px;margin:16px auto 0;font-size:12.5px;color:var(--board-fg);opacity:.7;text-align:center}
+
+/* detail panel is now a slide-over drawer (see .detail) */
+@media (max-width:620px){
+  .panel{grid-template-columns:1fr;border-radius:22px}
+  .side{flex-direction:row;gap:6px;padding:12px;overflow-x:auto}
+  .side .logo,.side .sp,.side .me{display:none}
+  .dayhead,.calbody{grid-template-columns:44px repeat(5,minmax(120px,1fr))}
+  .calbody{overflow-x:auto}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-3"/><path d="M12 16v-6"/><path d="M17 16v-9"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.09 5.26L19.5 9l-4.2 3.6L16.5 18 12 15.1 7.5 18l1.2-5.4L4.5 9l5.41-.74z"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/><path d="m15 5 4 4"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 4l1.8 4.6a3 3 0 0 0 1.6 1.6L20 12l-4.6 1.8a3 3 0 0 0-1.6 1.6L12 20l-1.8-4.6a3 3 0 0 0-1.6-1.6L4 12l4.6-1.8a3 3 0 0 0 1.6-1.6z"/></symbol>
+</defs></svg>
+
+<div class="panel">
+  <nav class="side">
+    <div class="logo"></div>
+    <div class="sideicon" title="Home"><svg class="lu"><use href="#i-home"/></svg></div>
+    <div class="sideicon" title="Calls"><svg class="lu"><use href="#i-phone"/></svg></div>
+    <div class="sideicon on" title="Bookings"><svg class="lu"><use href="#i-calendar"/></svg></div>
+    <div class="sideicon" title="Knowledge"><svg class="lu"><use href="#i-book"/></svg></div>
+    <div class="sideicon" title="Customers"><svg class="lu"><use href="#i-users"/></svg></div>
+    <div class="sideicon" title="Reports"><svg class="lu"><use href="#i-chart"/></svg></div>
+    <div class="sideicon" title="Settings"><svg class="lu"><use href="#i-settings"/></svg></div>
+    <div class="sp"></div>
+    <span class="ava me">JV</span>
+  </nav>
+
+  <div class="main">
+    <div class="work">
+      <div class="whead">
+        <h1>Bookings</h1>
+        <div class="loc"><button class="circbtn" aria-label="Notifications"><span class="dot"></span><svg class="lu"><use href="#i-bell"/></svg></button></div>
+      </div>
+
+      <div class="toolbar">
+        <button class="todaybtn">Today</button>
+        <div class="monthnav"><span class="nv"><svg class="lu"><use href="#i-chev-l"/></svg></span>Oct 2026<span class="nv"><svg class="lu"><use href="#i-chev-r"/></svg></span></div>
+        <div class="seg"><span>Day</span><span class="on">Week</span><span>Month</span></div>
+        <div class="filter"><svg class="lu"><use href="#i-check-circle"/></svg>All status<svg class="lu ch"><use href="#i-chevron-down"/></svg></div>
+        <div class="filter"><svg class="lu"><use href="#i-users"/></svg>All plumbers<svg class="lu ch"><use href="#i-chevron-down"/></svg></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Jobs booked <span class="sub">· last 7 days</span></div><div class="big"><b>46</b><span class="delta">+12%</span></div><div class="vs">vs last week</div></div><div class="spark sp-blue"><i style="height:34%"></i><i style="height:48%"></i><i style="height:40%"></i><i style="height:56%"></i><i style="height:46%"></i><i style="height:62%"></i><i style="height:52%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:80%"></i><i style="height:70%"></i></div></div>
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Completed <span class="sub">· last 7 days</span></div><div class="big"><b>82%</b><span class="delta">+6%</span></div><div class="vs">vs last week</div></div><div class="spark sp-green"><i style="height:40%"></i><i style="height:46%"></i><i style="height:52%"></i><i style="height:50%"></i><i style="height:58%"></i><i style="height:62%"></i><i style="height:60%"></i><i style="height:68%"></i><i style="height:66%"></i><i style="height:74%"></i><i style="height:72%"></i></div></div>
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Cancelled / no-show <span class="sub">· last 7 days</span></div><div class="big"><b>5%</b><span class="delta neg">+1%</span></div><div class="vs">vs last week</div></div><div class="spark sp-peach"><i style="height:30%"></i><i style="height:26%"></i><i style="height:34%"></i><i style="height:28%"></i><i style="height:38%"></i><i style="height:24%"></i><i style="height:32%"></i><i style="height:22%"></i><i style="height:30%"></i><i style="height:20%"></i><i style="height:26%"></i></div></div>
+      </div>
+
+      <div class="cal">
+        <div class="dayhead" id="dayHead"><div class="tz">GMT+3</div></div>
+        <div class="calbody"><div class="timecol" id="timeCol"></div>
+          <div class="daycol" data-day="0"></div><div class="daycol" data-day="1"></div>
+          <div class="daycol" data-day="2"></div><div class="daycol" data-day="3"></div><div class="daycol" data-day="4"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scrim" id="scrim"></div>
+    <aside class="detail" id="detailPanel">
+      <button class="dclose" id="dClose" aria-label="Close"><svg class="lu"><use href="#i-x"/></svg></button>
+      <div class="dstatus" id="dStatusBar"><span id="dStatusIcon"><svg class="lu"><use href="#i-check-circle"/></svg></span><span id="dStatusText">Job completed</span></div>
+      <div class="dbody">
+        <div class="dcust">
+          <span class="ava" id="dAv" style="background:#5B6CB0">—</span>
+          <div><div class="nm" id="dName">—</div><div class="ph" id="dPhone">—</div></div>
+          <span class="edit"><svg class="lu"><use href="#i-pencil"/></svg></span>
+        </div>
+        <div class="dtime">
+          <span class="ic"><svg class="lu"><use href="#i-clock"/></svg></span>
+          <div class="tt"><b id="dTime">—</b><span id="dDate">—</span></div>
+          <span class="st" id="dStatusPill">—</span>
+        </div>
+        <div class="dnote" id="dNote">No note on this job.</div>
+        <div class="dacts"><button class="dbtn" id="dBtn"><svg class="lu"><use href="#i-phone"/></svg>Call customer</button><button class="dmore" aria-label="More options"><svg class="lu"><use href="#i-more"/></svg></button></div>
+        <div class="dsec">
+          <h4>Job details</h4>
+          <div class="facts">
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-wrench"/></svg></span><div><div class="l">Service</div><div class="v" id="dSvc">—</div></div></div>
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-pin"/></svg></span><div><div class="l">Address</div><div class="v" id="dAddr">—</div></div></div>
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-user"/></svg></span><div><div class="l">Assigned to</div><div class="v" id="dStaff">—</div></div></div>
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-sparkles"/></svg></span><div><div class="l">Booked by</div><div class="v">LumiDesk receptionist · by phone</div></div></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<p class="note">Mockup — example week for a fictional “PriceVilla” plumber in Oulu. Click any appointment to open its details. Onest typeface, Lucide icons, initials avatars.</p>
+
+<script>
+(function(){
+  var DAYS = [["19","MON"],["20","TUE"],["21","WED"],["22","THU"],["23","FRI"]];
+  var TODAY = 3, START=8, END=18, HOUR=62;
+  var AVCOLORS=["#64748B","#3F8F86","#A9795A","#7E6A99","#B5697A","#4E79B8","#5B6CB0"];
+  function m(t){var p=t.split(":");return (+p[0])*60+(+p[1]);}
+  function top(t){return (m(t)-START*60)/60*HOUR;}
+  function hgt(a,b){return Math.max(26,(m(b)-m(a))/60*HOUR-4);}
+  function initials(n){ if(/^[+\d]/.test(n)) return null; var p=n.replace(/[—–-]/g," ").split(/\s+/).filter(Boolean); return (((p[0]||"")[0]||"")+((p[1]||"")[0]||"")).toUpperCase(); }
+
+  var STAFF=["Eero","Jarmo","Mikko","Saana"];
+  var A = [
+    {day:0,s:"08:30",e:"10:00",name:"Eero Salmi",svc:"Radiator bleed & balance",color:"purple",status:"confirmed",phone:"+358 40 221 7788",addr:"Koskikatu 9, Oulu",note:"Three radiators cold upstairs since the weekend."},
+    {day:0,s:"10:30",e:"11:30",name:"Liisa Aho",svc:"Leaking tap",color:"green",status:"completed",phone:"+358 44 980 1122",addr:"Kajaanintie 5, Oulu",note:"Dripping mixer tap in the kitchen."},
+    {day:0,s:"13:00",e:"14:00",name:"Walk-in — Hakala",svc:"Drain unblock",color:"blue",status:"confirmed",phone:"+358 50 118 4420",addr:"Isokatu 44, Oulu",note:"Slow-draining shower."},
+    {day:1,s:"09:00",e:"09:45",name:"Jasper Niemi",svc:"Boiler inspection",color:"yellow",status:"completed",phone:"+358 40 552 9011",addr:"Torikatu 18, Oulu",note:"Annual service."},
+    {day:1,s:"10:00",e:"11:30",name:"Mika Virtanen",svc:"Emergency leak",color:"pink",status:"urgent",phone:"+358 40 555 1180",addr:"Isokatu 22, Oulu",note:"Burst pipe under the kitchen sink, water on the floor."},
+    {day:1,s:"13:15",e:"14:30",name:"Omar Rahim",svc:"Toilet replacement",color:"purple",status:"confirmed",phone:"+358 44 330 7781",addr:"Asemakatu 3, Oulu",note:"Supplying and fitting a new WC."},
+    {day:2,s:"09:30",e:"10:30",name:"Ethan Koski",svc:"Shower mixer fit",color:"purple",status:"confirmed",phone:"+358 50 771 2235",addr:"Kirkkokatu 7, Oulu",note:"Customer supplies the mixer."},
+    {day:2,s:"12:00",e:"13:30",name:"Sophie Laine",svc:"Bathroom — quote visit",color:"green",status:"confirmed",phone:"+358 40 664 9008",addr:"Rautatienkatu 12, Oulu",note:"Full bathroom refit, on-site quote."},
+    {day:2,s:"14:45",e:"15:45",name:"Clara Mäki",svc:"Water heater check",color:"peach",status:"completed",phone:"+358 44 210 5567",addr:"Saaristonkatu 1, Oulu",note:"No hot water in the mornings."},
+    {day:3,s:"08:00",e:"09:30",name:"Laura Mäkelä",svc:"No hot water — urgent",color:"pink",status:"urgent",phone:"+358 40 555 7788",addr:"Linnankatu 14, Oulu",note:"Elderly tenant, no hot water since morning. Same-day callout."},
+    {day:3,s:"09:45",e:"11:00",name:"Sofia Koivu",svc:"Radiator diagnostic",color:"purple",status:"confirmed",phone:"+358 44 119 2200",addr:"Linnankatu 14, Oulu",note:"One room not heating."},
+    {day:3,s:"13:00",e:"14:00",name:"Antti Laine",svc:"Water heater — quote",color:"peach",status:"confirmed",phone:"+358 44 712 9908",addr:"Nummikatu 8, Oulu",note:"Replace an old electric water heater, wants pricing."},
+    {day:4,s:"09:00",e:"10:30",name:"Zara Holappa",svc:"Pipe re-route",color:"blue",status:"confirmed",phone:"+358 50 442 1180",addr:"Albertinkatu 2, Oulu",note:"Re-routing pipework for a new kitchen."}
+  ];
+  var STATUS = {
+    completed:{bar:"#2BA564",text:"Job completed",pill:"#2BA564",pillbg:"#E4F6EC",icon:"i-check-circle"},
+    confirmed:{bar:"#2F6BFF",text:"Confirmed",pill:"#2F6BFF",pillbg:"#E6EEFF",icon:"i-check-circle"},
+    urgent:{bar:"#E0509A",text:"Urgent · same day",pill:"#B23172",pillbg:"#FBE1EF",icon:"i-alert"}
+  };
+
+  var dh=document.getElementById("dayHead");
+  DAYS.forEach(function(d,i){
+    var cnt=A.filter(function(a){return a.day===i;}).length;
+    var el=document.createElement("div"); el.className="dh"+(i===TODAY?" today":"");
+    el.innerHTML='<span class="dnum">'+d[0]+'</span><span class="dmeta"><b>'+d[1]+'</b><span>'+cnt+' job'+(cnt===1?'':'s')+'</span></span>';
+    dh.appendChild(el);
+  });
+  var tc=document.getElementById("timeCol");
+  for(var h=START;h<=END;h++){ var tl=document.createElement("div"); tl.className="tl"; var lab=((h%12)||12); tl.innerHTML='<span>'+lab+':00 '+(h<12?"AM":"PM")+'</span>'; tc.appendChild(tl); }
+  var cols=document.querySelectorAll(".daycol");
+  var now=document.createElement("div"); now.className="nowline"; now.style.top=top("11:10")+"px"; if(cols[TODAY]) cols[TODAY].appendChild(now);
+
+  A.forEach(function(a,idx){
+    var el=document.createElement("div"); el.className="appt f-"+a.color; el.dataset.idx=idx;
+    el.style.top=top(a.s)+"px"; el.style.height=hgt(a.s,a.e)+"px";
+    el.innerHTML='<div class="at">'+a.s+'–'+a.e+'</div><div class="an">'+a.name+'</div><div class="as">'+a.svc+'</div>';
+    el.addEventListener("click",function(){select(idx);openDrawer();});
+    cols[a.day].appendChild(el);
+  });
+
+  function select(idx){
+    document.querySelectorAll(".appt").forEach(function(n){n.classList.toggle("sel", +n.dataset.idx===idx);});
+    var a=A[idx], st=STATUS[a.status];
+    document.getElementById("dStatusBar").style.background=st.bar;
+    document.getElementById("dStatusText").textContent=st.text;
+    document.getElementById("dStatusIcon").innerHTML='<svg class="lu"><use href="#'+st.icon+'"/></svg>';
+    document.getElementById("dName").textContent=a.name;
+    document.getElementById("dPhone").textContent=a.phone;
+    var av=document.getElementById("dAv"), ini=initials(a.name);
+    if(ini){ av.textContent=ini; av.style.background=AVCOLORS[idx%AVCOLORS.length]; }
+    else { av.innerHTML='<svg class="lu" style="width:18px;height:18px"><use href="#i-user"/></svg>'; av.style.background="#9AA0AB"; }
+    document.getElementById("dTime").textContent=a.s+" → "+a.e;
+    var mins=(m(a.e)-m(a.s));
+    document.getElementById("dDate").textContent=DAYS[a.day][1].charAt(0)+DAYS[a.day][1].slice(1).toLowerCase()+" "+DAYS[a.day][0]+" Oct · "+mins+" min";
+    var pill=document.getElementById("dStatusPill");
+    pill.textContent=a.status.charAt(0).toUpperCase()+a.status.slice(1); pill.style.color=st.pill; pill.style.background=st.pillbg;
+    document.getElementById("dNote").textContent=a.note;
+    document.getElementById("dSvc").textContent=a.svc;
+    document.getElementById("dAddr").textContent=a.addr;
+    document.getElementById("dStaff").textContent=(a.staff||STAFF[idx%STAFF.length]);
+  }
+
+  var detailPanel=document.getElementById("detailPanel"), scrim=document.getElementById("scrim");
+  function openDrawer(){detailPanel.classList.add("open");scrim.classList.add("open");}
+  function closeDrawer(){detailPanel.classList.remove("open");scrim.classList.remove("open");document.querySelectorAll(".appt.sel").forEach(function(n){n.classList.remove("sel");});}
+  document.getElementById("dClose").addEventListener("click",closeDrawer);
+  scrim.addEventListener("click",closeDrawer);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();});
+  // pre-fill the panel so it isn't empty when first opened, but keep it closed
+  var pre=A.findIndex(function(a){return a.name==="Laura Mäkelä";}); select(pre<0?0:pre);
+  document.querySelectorAll(".appt.sel").forEach(function(n){n.classList.remove("sel");});
+
+  if(!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches)){
+    document.querySelectorAll(".tiltcard").forEach(function(card){
+      card.addEventListener("mousemove",function(e){
+        var r=card.getBoundingClientRect(); var px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+        card.style.transform="perspective(760px) rotateX("+((0.5-py)*7).toFixed(2)+"deg) rotateY("+((px-0.5)*9).toFixed(2)+"deg) translateY(-3px) scale(1.02)";
+        card.style.setProperty("--gx",(px*100).toFixed(1)+"%"); card.style.setProperty("--gy",(py*100).toFixed(1)+"%");
+      });
+      card.addEventListener("mouseleave",function(){card.style.transform="";});
+    });
+  }
+})();
+</script>
