@@ -15,7 +15,7 @@ to check; the tools endpoints fall back to generated slots when it returns False
 so the whole flow works end-to-end before you wire real credentials.
 """
 import os
-from datetime import datetime, timedelta, time
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 # Env:
@@ -42,8 +42,8 @@ def _get_service():
     global _service
     if _service is not None:
         return _service
-    from google.oauth2 import service_account          # lazy import
-    from googleapiclient.discovery import build          # lazy import
+    from google.oauth2 import service_account  # lazy import
+    from googleapiclient.discovery import build  # lazy import
 
     creds = service_account.Credentials.from_service_account_file(
         os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"], scopes=_SCOPES

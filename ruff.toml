@@ -1,7 +1,17 @@
-# Code-style + lint config, shared by you locally and by CI.
+# Code-style + lint config, shared locally and by CI.
 line-length = 100
 target-version = "py310"
 
+# Lint the application code only; skip legacy, dev scripts, data and vendored dirs.
+extend-exclude = [
+    "archive", "demo", "scripts", "samples", "example_docs",
+    "_to_delete", "website", "outreach",
+    "rag_index", "tenant_indexes", ".venv",
+]
+
 [lint]
-# E = style errors, F = real bugs (unused/undefined names), I = import order.
+# E = style, F = real bugs (unused/undefined names), I = import order.
+# E501 (line length) is intentionally relaxed: several SQL strings and user-facing
+# error messages read more clearly on a single line.
 select = ["E", "F", "I"]
+ignore = ["E501"]

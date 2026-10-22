@@ -29,7 +29,7 @@ jobs:
         run: ruff check .
 
       - name: Syntax check
-        run: python -m compileall providers app.py document_loader.py rag_retriever.py build_rag_index.py voice_Agent.py
+        run: python -m compileall providers app.py document_loader.py rag_retriever.py scripts/build_rag_index.py
 
       - name: Import smoke test
         run: python -c "import rag_chain, providers.base, providers.google_stt, providers.elevenlabs_tts, providers.ollama_llm; print('imports OK')"
