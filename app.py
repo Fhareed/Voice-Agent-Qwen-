@@ -14,6 +14,7 @@ from starlette.background import BackgroundTask
 
 import bookings_store
 import call_logs
+import settings_store
 from auth import get_current_user, sign_in, sign_up
 from deps import require_org_member
 from lead_extract import extract_lead
@@ -363,6 +364,21 @@ def delete_booking_endpoint(booking_id: str, ctx: dict = Depends(require_org_mem
     if not bookings_store.delete_booking(ctx["org_id"], booking_id):
         return JSONResponse({"error": "Booking not found."}, status_code=404)
     return {"ok": True, "id": booking_id}
+
+
+# ── Settings (owner-facing, per org) ──────────────────────────────
+# One JSON blob per org: business profile, phone number, hours, voice,
+# notifications, plan. Read + merged-write, scoped to the caller's org.
+@app.get("/settings")
+def get_settings_endpoint(ctx: dict = Depends(require_org_member)):
+    """Return this org's settings (business profile, hours, voice, etc.)."""
+    return {"settings": settings_store.get_settings(ctx["org_id"])}
+
+
+@app.patch("/settings")
+def patch_settings_endpoint(body: dict, ctx: dict = Depends(require_org_member)):
+    """Merge a patch into this org's settings and return the full settings."""
+    return {"settings": settings_store.save_settings(ctx["org_id"], body)}
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

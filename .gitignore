@@ -100,3 +100,7 @@ demo_calls.jsonl
 
 # quarantined for deletion
 _to_delete/
+
+# Next.js frontend source (the Python `lib/` rule above wrongly catches this)
+!frontend/lib/
+!frontend/lib/**

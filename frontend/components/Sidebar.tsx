@@ -15,7 +15,7 @@ export default function Sidebar({
   active,
   orgName,
 }: {
-  active: "calls" | "bookings";
+  active: "calls" | "bookings" | "settings";
   orgName?: string | null;
 }) {
   const router = useRouter();
@@ -50,9 +50,13 @@ export default function Sidebar({
       <div className="sideicon" title="Reports (coming soon)">
         <Icon name="i-chart" />
       </div>
-      <div className="sideicon" title="Settings (coming soon)">
+      <Link
+        href="/app/settings"
+        className={`sideicon${active === "settings" ? " on" : ""}`}
+        title="Settings"
+      >
         <Icon name="i-settings" />
-      </div>
+      </Link>
       <div className="sp" />
       <button
         type="button"
