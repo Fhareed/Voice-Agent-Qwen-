@@ -27,9 +27,9 @@
 
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--board-grad);background-attachment:fixed;color:var(--board-fg);font-family:var(--font);line-height:1.45;
+body{background:var(--sidebar);color:var(--board-fg);font-family:var(--font);line-height:1.45;
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;
-  padding:clamp(14px,3vw,34px) max(14px,env(safe-area-inset-left,0px)) clamp(20px,4vw,44px) max(14px,env(safe-area-inset-right,0px))}
+  padding:0;min-height:100vh}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .lu{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;width:20px;height:20px}
@@ -37,7 +37,7 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
 .ava{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--font);line-height:1;letter-spacing:.3px;flex:0 0 auto}
 .ava .lu{color:#fff}
 
-.panel{max-width:1340px;margin:0 auto;background:var(--sidebar);border-radius:30px;overflow:hidden;box-shadow:var(--shadow-panel);display:grid;grid-template-columns:86px 1fr}
+.panel{width:100%;min-height:100vh;background:var(--sidebar);overflow:hidden;display:grid;grid-template-columns:86px 1fr}
 
 .side{background:var(--sidebar);box-shadow:inset -1px 0 0 rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;gap:7px;padding:20px 0}
 .side .logo{width:40px;height:40px;border-radius:13px;background:linear-gradient(145deg,#6FA0FF,#2F6BFF);box-shadow:inset 0 1px 0 rgba(255,255,255,.4);margin-bottom:12px}
@@ -48,11 +48,11 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
 .side .sp{flex:1}
 .side .me{width:40px;height:40px;font-size:13px;background:#5B6CB0;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
 
-.main{position:relative;min-width:0}
+.main{position:relative;min-width:0;display:flex;flex-direction:column}
 .work{background:
     radial-gradient(760px 420px at 100% -8%, rgba(255,255,255,.6), transparent 55%),
     linear-gradient(170deg,#F7F7F9 0%,#F1F2F5 100%);
-  padding:22px clamp(16px,2.4vw,26px) 24px;min-width:0;display:flex;flex-direction:column}
+  padding:22px clamp(16px,2.4vw,26px) 24px;min-width:0;flex:1;display:flex;flex-direction:column}
 
 .whead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
 .whead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.03em;color:var(--ink-900)}
@@ -122,6 +122,13 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
 .f-yellow{--f:var(--yellow);--b:var(--yellow-bar);--k:var(--yellow-ink)}
 .f-peach{--f:var(--peach);--b:var(--peach-bar);--k:var(--peach-ink)}
 .f-blue{--f:var(--blue);--b:var(--blue-bar);--k:var(--blue-ink)}
+.f-slate{--f:#E6E8EE;--b:#8A93A6;--k:#454B5A}
+
+.calempty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px;color:var(--ink-500);z-index:3;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.25))}
+.calempty .eico{width:58px;height:58px;border-radius:18px;background:#EEF1F7;display:grid;place-items:center;color:var(--accent)}
+.calempty .eico .lu{width:28px;height:28px}
+.calempty b{font-size:16px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}
+.calempty span{font-size:13px;max-width:360px}
 
 .scrim{position:absolute;inset:0;background:rgba(18,22,38,.20);opacity:0;visibility:hidden;transition:opacity .25s ease;z-index:15}
 .scrim.open{opacity:1;visibility:visible}
@@ -222,16 +229,16 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
 
       <div class="toolbar">
         <button class="todaybtn">Today</button>
-        <div class="monthnav"><span class="nv"><svg class="lu"><use href="#i-chev-l"/></svg></span>Oct 2026<span class="nv"><svg class="lu"><use href="#i-chev-r"/></svg></span></div>
+        <div class="monthnav"><span class="nv"><svg class="lu"><use href="#i-chev-l"/></svg></span><span id="monthLabel">—</span><span class="nv"><svg class="lu"><use href="#i-chev-r"/></svg></span></div>
         <div class="seg"><span>Day</span><span class="on">Week</span><span>Month</span></div>
         <div class="filter"><svg class="lu"><use href="#i-check-circle"/></svg>All status<svg class="lu ch"><use href="#i-chevron-down"/></svg></div>
         <div class="filter"><svg class="lu"><use href="#i-users"/></svg>All plumbers<svg class="lu ch"><use href="#i-chevron-down"/></svg></div>
       </div>
 
       <div class="stats">
-        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Jobs booked <span class="sub">· last 7 days</span></div><div class="big"><b>46</b><span class="delta">+12%</span></div><div class="vs">vs last week</div></div><div class="spark sp-blue"><i style="height:34%"></i><i style="height:48%"></i><i style="height:40%"></i><i style="height:56%"></i><i style="height:46%"></i><i style="height:62%"></i><i style="height:52%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:80%"></i><i style="height:70%"></i></div></div>
-        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Completed <span class="sub">· last 7 days</span></div><div class="big"><b>82%</b><span class="delta">+6%</span></div><div class="vs">vs last week</div></div><div class="spark sp-green"><i style="height:40%"></i><i style="height:46%"></i><i style="height:52%"></i><i style="height:50%"></i><i style="height:58%"></i><i style="height:62%"></i><i style="height:60%"></i><i style="height:68%"></i><i style="height:66%"></i><i style="height:74%"></i><i style="height:72%"></i></div></div>
-        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Cancelled / no-show <span class="sub">· last 7 days</span></div><div class="big"><b>5%</b><span class="delta neg">+1%</span></div><div class="vs">vs last week</div></div><div class="spark sp-peach"><i style="height:30%"></i><i style="height:26%"></i><i style="height:34%"></i><i style="height:28%"></i><i style="height:38%"></i><i style="height:24%"></i><i style="height:32%"></i><i style="height:22%"></i><i style="height:30%"></i><i style="height:20%"></i><i style="height:26%"></i></div></div>
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Jobs booked <span class="sub">· this week</span></div><div class="big"><b id="stBooked">0</b></div><div class="vs" id="stBookedSub">in the week shown</div></div><div class="spark sp-blue" id="sparkBooked"></div></div>
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Completed <span class="sub">· all time</span></div><div class="big"><b id="stDone">0%</b></div><div class="vs" id="stDoneSub">of all jobs</div></div><div class="spark sp-green" id="sparkDone"></div></div>
+        <div class="stat tiltcard"><div class="stat-l"><div class="lab">Cancelled / no-show <span class="sub">· all time</span></div><div class="big"><b id="stCancel">0%</b></div><div class="vs" id="stCancelSub">of all jobs</div></div><div class="spark sp-peach" id="sparkCancel"></div></div>
       </div>
 
       <div class="cal">
@@ -264,8 +271,8 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
           <h4>Job details</h4>
           <div class="facts">
             <div class="fact"><span class="ic"><svg class="lu"><use href="#i-wrench"/></svg></span><div><div class="l">Service</div><div class="v" id="dSvc">—</div></div></div>
-            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-pin"/></svg></span><div><div class="l">Address</div><div class="v" id="dAddr">—</div></div></div>
-            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-user"/></svg></span><div><div class="l">Assigned to</div><div class="v" id="dStaff">—</div></div></div>
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-user"/></svg></span><div><div class="l">Contact</div><div class="v" id="dContact">—</div></div></div>
+            <div class="fact"><span class="ic"><svg class="lu"><use href="#i-calendar"/></svg></span><div><div class="l">Booked on</div><div class="v" id="dBookedOn">—</div></div></div>
             <div class="fact"><span class="ic"><svg class="lu"><use href="#i-sparkles"/></svg></span><div><div class="l">Booked by</div><div class="v">LumiDesk receptionist · by phone</div></div></div>
           </div>
         </div>
@@ -273,80 +280,171 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
     </aside>
   </div>
 </div>
-<p class="note">Mockup — example week for a fictional “PriceVilla” plumber in Oulu. Click any appointment to open its details. Onest typeface, Lucide icons, initials avatars.</p>
+
+<script>
+/* Live data is injected here by the server (window.__DATA__). */
+</script>
+<!--__LUMIDESK_DATA__-->
 
 <script>
 (function(){
-  var DAYS = [["19","MON"],["20","TUE"],["21","WED"],["22","THU"],["23","FRI"]];
-  var TODAY = 3, START=8, END=18, HOUR=62;
+  var START=8, END=18, HOUR=62;
   var AVCOLORS=["#64748B","#3F8F86","#A9795A","#7E6A99","#B5697A","#4E79B8","#5B6CB0"];
+  var WD=["MON","TUE","WED","THU","FRI","SAT","SUN"];
+  var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var ROTATE=["blue","purple","peach","yellow"];
+  var STATUS={
+    completed:{bar:"#2BA564",text:"Job completed",pill:"#2BA564",pillbg:"#E4F6EC",icon:"i-check-circle",label:"Completed",fill:"green"},
+    confirmed:{bar:"#2F6BFF",text:"Confirmed",pill:"#2F6BFF",pillbg:"#E6EEFF",icon:"i-check-circle",label:"Confirmed",fill:null},
+    urgent:{bar:"#E0509A",text:"Urgent · same day",pill:"#B23172",pillbg:"#FBE1EF",icon:"i-alert",label:"Urgent",fill:"pink"},
+    cancelled:{bar:"#8A93A6",text:"Cancelled",pill:"#6B7280",pillbg:"#EEF0F3",icon:"i-x",label:"Cancelled",fill:"slate"},
+    no_show:{bar:"#B3541F",text:"No-show",pill:"#B3541F",pillbg:"#FBE8DC",icon:"i-alert",label:"No-show",fill:"slate"}
+  };
+
+  var D=(window.__DATA__||{}); var RAW=(D.bookings||[]);
+  function pad(n){return (n<10?"0":"")+n;}
+  function hm(d){return pad(d.getHours())+":"+pad(d.getMinutes());}
   function m(t){var p=t.split(":");return (+p[0])*60+(+p[1]);}
   function top(t){return (m(t)-START*60)/60*HOUR;}
   function hgt(a,b){return Math.max(26,(m(b)-m(a))/60*HOUR-4);}
-  function initials(n){ if(/^[+\d]/.test(n)) return null; var p=n.replace(/[—–-]/g," ").split(/\s+/).filter(Boolean); return (((p[0]||"")[0]||"")+((p[1]||"")[0]||"")).toUpperCase(); }
+  function initials(n){ if(!n||/^[+\d]/.test(n)) return null; var p=String(n).replace(/[—–-]/g," ").split(/\s+/).filter(Boolean); var r=(((p[0]||"")[0]||"")+((p[1]||"")[0]||"")).toUpperCase(); return r||null; }
+  function visStatus(b){
+    var s=(b.status||"booked");
+    if(s==="completed") return "completed";
+    if(s==="cancelled") return "cancelled";
+    if(s==="no_show") return "no_show";
+    var hay=((b.service||"")+" "+(b.notes||"")).toLowerCase();
+    if(/urgent|emergency|burst|flood|no hot water|same.?day|leak/.test(hay)) return "urgent";
+    return "confirmed";
+  }
 
-  var STAFF=["Eero","Jarmo","Mikko","Saana"];
-  var A = [
-    {day:0,s:"08:30",e:"10:00",name:"Eero Salmi",svc:"Radiator bleed & balance",color:"purple",status:"confirmed",phone:"+358 40 221 7788",addr:"Koskikatu 9, Oulu",note:"Three radiators cold upstairs since the weekend."},
-    {day:0,s:"10:30",e:"11:30",name:"Liisa Aho",svc:"Leaking tap",color:"green",status:"completed",phone:"+358 44 980 1122",addr:"Kajaanintie 5, Oulu",note:"Dripping mixer tap in the kitchen."},
-    {day:0,s:"13:00",e:"14:00",name:"Walk-in — Hakala",svc:"Drain unblock",color:"blue",status:"confirmed",phone:"+358 50 118 4420",addr:"Isokatu 44, Oulu",note:"Slow-draining shower."},
-    {day:1,s:"09:00",e:"09:45",name:"Jasper Niemi",svc:"Boiler inspection",color:"yellow",status:"completed",phone:"+358 40 552 9011",addr:"Torikatu 18, Oulu",note:"Annual service."},
-    {day:1,s:"10:00",e:"11:30",name:"Mika Virtanen",svc:"Emergency leak",color:"pink",status:"urgent",phone:"+358 40 555 1180",addr:"Isokatu 22, Oulu",note:"Burst pipe under the kitchen sink, water on the floor."},
-    {day:1,s:"13:15",e:"14:30",name:"Omar Rahim",svc:"Toilet replacement",color:"purple",status:"confirmed",phone:"+358 44 330 7781",addr:"Asemakatu 3, Oulu",note:"Supplying and fitting a new WC."},
-    {day:2,s:"09:30",e:"10:30",name:"Ethan Koski",svc:"Shower mixer fit",color:"purple",status:"confirmed",phone:"+358 50 771 2235",addr:"Kirkkokatu 7, Oulu",note:"Customer supplies the mixer."},
-    {day:2,s:"12:00",e:"13:30",name:"Sophie Laine",svc:"Bathroom — quote visit",color:"green",status:"confirmed",phone:"+358 40 664 9008",addr:"Rautatienkatu 12, Oulu",note:"Full bathroom refit, on-site quote."},
-    {day:2,s:"14:45",e:"15:45",name:"Clara Mäki",svc:"Water heater check",color:"peach",status:"completed",phone:"+358 44 210 5567",addr:"Saaristonkatu 1, Oulu",note:"No hot water in the mornings."},
-    {day:3,s:"08:00",e:"09:30",name:"Laura Mäkelä",svc:"No hot water — urgent",color:"pink",status:"urgent",phone:"+358 40 555 7788",addr:"Linnankatu 14, Oulu",note:"Elderly tenant, no hot water since morning. Same-day callout."},
-    {day:3,s:"09:45",e:"11:00",name:"Sofia Koivu",svc:"Radiator diagnostic",color:"purple",status:"confirmed",phone:"+358 44 119 2200",addr:"Linnankatu 14, Oulu",note:"One room not heating."},
-    {day:3,s:"13:00",e:"14:00",name:"Antti Laine",svc:"Water heater — quote",color:"peach",status:"confirmed",phone:"+358 44 712 9908",addr:"Nummikatu 8, Oulu",note:"Replace an old electric water heater, wants pricing."},
-    {day:4,s:"09:00",e:"10:30",name:"Zara Holappa",svc:"Pipe re-route",color:"blue",status:"confirmed",phone:"+358 50 442 1180",addr:"Albertinkatu 2, Oulu",note:"Re-routing pipework for a new kitchen."}
-  ];
-  var STATUS = {
-    completed:{bar:"#2BA564",text:"Job completed",pill:"#2BA564",pillbg:"#E4F6EC",icon:"i-check-circle"},
-    confirmed:{bar:"#2F6BFF",text:"Confirmed",pill:"#2F6BFF",pillbg:"#E6EEFF",icon:"i-check-circle"},
-    urgent:{bar:"#E0509A",text:"Urgent · same day",pill:"#B23172",pillbg:"#FBE1EF",icon:"i-alert"}
-  };
+  // Parse + keep only bookings with a start time.
+  var B=RAW.map(function(b){
+    var st=b.start_ts?new Date(b.start_ts):null;
+    var en=b.end_ts?new Date(b.end_ts):null;
+    if(st&&(!en||isNaN(en))) en=new Date(st.getTime()+60*60000);
+    return (st&&!isNaN(st))?{raw:b,start:st,end:en}:null;
+  }).filter(Boolean);
 
+  // Reference week = week (Mon–Fri) containing the booking nearest to now; else this week.
+  function mondayOf(d){var x=new Date(d);var day=(x.getDay()+6)%7;x.setHours(0,0,0,0);x.setDate(x.getDate()-day);return x;}
+  var now=new Date(), ref=now;
+  if(B.length){ ref=B.slice().sort(function(a,c){return Math.abs(a.start-now)-Math.abs(c.start-now);})[0].start; }
+  var weekStart=mondayOf(ref);
+  function dayIndex(d){var x=new Date(d);x.setHours(0,0,0,0);return Math.round((x-weekStart)/86400000);}
+
+  // Month label (span if the visible Mon–Fri crosses a month boundary).
+  var friday=new Date(weekStart); friday.setDate(friday.getDate()+4);
+  document.getElementById("monthLabel").textContent =
+    (weekStart.getMonth()===friday.getMonth())
+      ? MON[weekStart.getMonth()]+" "+weekStart.getFullYear()
+      : MON[weekStart.getMonth()]+"–"+MON[friday.getMonth()]+" "+friday.getFullYear();
+
+  // Build the 5 visible days + today index.
+  var DAYS=[]; for(var i=0;i<5;i++){var dd=new Date(weekStart);dd.setDate(dd.getDate()+i);DAYS.push(dd);}
+  var todayStart=new Date(); todayStart.setHours(0,0,0,0);
+  var TODAY=Math.round((todayStart-weekStart)/86400000); if(TODAY<0||TODAY>4) TODAY=-1;
+
+  // Appointments that fall Mon–Fri of the visible week.
+  var A=[];
+  B.forEach(function(x){
+    var di=dayIndex(x.start); if(di<0||di>4) return;
+    var vs=visStatus(x.raw), st=STATUS[vs];
+    A.push({
+      day:di, s:hm(x.start), e:hm(x.end), start:x.start, end:x.end,
+      name:x.raw.customer_name||x.raw.customer_phone||"Unknown caller",
+      phone:x.raw.customer_phone||"", email:x.raw.customer_email||"",
+      svc:x.raw.service||"Appointment", note:x.raw.notes||"",
+      created:x.raw.created_at?new Date(x.raw.created_at):null,
+      vstatus:vs, color:(st.fill||ROTATE[A.length%ROTATE.length])
+    });
+  });
+  A.sort(function(a,b){return a.day-b.day || m(a.s)-m(b.s);});
+
+  // Day headers.
   var dh=document.getElementById("dayHead");
   DAYS.forEach(function(d,i){
     var cnt=A.filter(function(a){return a.day===i;}).length;
     var el=document.createElement("div"); el.className="dh"+(i===TODAY?" today":"");
-    el.innerHTML='<span class="dnum">'+d[0]+'</span><span class="dmeta"><b>'+d[1]+'</b><span>'+cnt+' job'+(cnt===1?'':'s')+'</span></span>';
+    el.innerHTML='<span class="dnum">'+d.getDate()+'</span><span class="dmeta"><b>'+WD[i]+'</b><span>'+cnt+' job'+(cnt===1?'':'s')+'</span></span>';
     dh.appendChild(el);
   });
+  // Hour gutter.
   var tc=document.getElementById("timeCol");
   for(var h=START;h<=END;h++){ var tl=document.createElement("div"); tl.className="tl"; var lab=((h%12)||12); tl.innerHTML='<span>'+lab+':00 '+(h<12?"AM":"PM")+'</span>'; tc.appendChild(tl); }
   var cols=document.querySelectorAll(".daycol");
-  var now=document.createElement("div"); now.className="nowline"; now.style.top=top("11:10")+"px"; if(cols[TODAY]) cols[TODAY].appendChild(now);
+  // Now-line (only when today is in view and within the shown hours).
+  if(TODAY>=0){ var nm=now.getHours()*60+now.getMinutes();
+    if(nm>=START*60&&nm<=END*60){ var nl=document.createElement("div"); nl.className="nowline"; nl.style.top=((nm-START*60)/60*HOUR)+"px"; if(cols[TODAY]) cols[TODAY].appendChild(nl); } }
 
+  // Appointment blocks.
   A.forEach(function(a,idx){
     var el=document.createElement("div"); el.className="appt f-"+a.color; el.dataset.idx=idx;
-    el.style.top=top(a.s)+"px"; el.style.height=hgt(a.s,a.e)+"px";
-    el.innerHTML='<div class="at">'+a.s+'–'+a.e+'</div><div class="an">'+a.name+'</div><div class="as">'+a.svc+'</div>';
+    el.style.top=Math.max(0,top(a.s))+"px"; el.style.height=hgt(a.s,a.e)+"px";
+    el.innerHTML='<div class="at">'+a.s+'–'+a.e+'</div><div class="an"></div><div class="as"></div>';
+    el.querySelector(".an").textContent=a.name; el.querySelector(".as").textContent=a.svc;
     el.addEventListener("click",function(){select(idx);openDrawer();});
-    cols[a.day].appendChild(el);
+    if(cols[a.day]) cols[a.day].appendChild(el);
   });
+
+  // Empty state overlay when nothing to show.
+  if(A.length===0){
+    var cal=document.querySelector(".cal");
+    var ov=document.createElement("div"); ov.className="calempty";
+    var head = RAW.length ? "No bookings this week" : "No bookings yet";
+    var body = RAW.length
+      ? ("You have "+RAW.length+" booking"+(RAW.length===1?"":"s")+" in other weeks. Use the arrows to find them.")
+      : "When your AI receptionist books a job over the phone, it shows up on this calendar automatically.";
+    ov.innerHTML='<div class="eico"><svg class="lu"><use href="#i-calendar"/></svg></div><b></b><span></span>';
+    ov.querySelector("b").textContent=head; ov.querySelector("span").textContent=body;
+    cal.appendChild(ov);
+  }
+
+  // Stats from real data.
+  var all=RAW.length;
+  var done=RAW.filter(function(b){return b.status==="completed";}).length;
+  var bad=RAW.filter(function(b){return b.status==="cancelled"||b.status==="no_show";}).length;
+  document.getElementById("stBooked").textContent=A.length;
+  document.getElementById("stBookedSub").textContent="in the week shown";
+  document.getElementById("stDone").textContent=all?Math.round(done/all*100)+"%":"—";
+  document.getElementById("stDoneSub").textContent=all?(done+" of "+all+" jobs"):"no jobs yet";
+  document.getElementById("stCancel").textContent=all?Math.round(bad/all*100)+"%":"—";
+  document.getElementById("stCancelSub").textContent=all?(bad+" of "+all+" jobs"):"no jobs yet";
+  // Sparklines = bookings per day over the last 9 days (real counts).
+  function spark(elId, startsPredicate){
+    var el=document.getElementById(elId); if(!el) return; var days=9, counts=[], max=1;
+    for(var k=days-1;k>=0;k--){ var d0=new Date(); d0.setHours(0,0,0,0); d0.setDate(d0.getDate()-k); var d1=new Date(d0); d1.setDate(d1.getDate()+1);
+      var c=RAW.filter(function(b){ if(!startsPredicate(b)) return false; var t=b.start_ts?new Date(b.start_ts):null; return t&&t>=d0&&t<d1; }).length;
+      counts.push(c); if(c>max) max=c; }
+    el.innerHTML=counts.map(function(c){return '<i style="height:'+Math.max(8,Math.round(c/max*100))+'%"></i>';}).join("");
+  }
+  spark("sparkBooked", function(){return true;});
+  spark("sparkDone", function(b){return b.status==="completed";});
+  spark("sparkCancel", function(b){return b.status==="cancelled"||b.status==="no_show";});
 
   function select(idx){
     document.querySelectorAll(".appt").forEach(function(n){n.classList.toggle("sel", +n.dataset.idx===idx);});
-    var a=A[idx], st=STATUS[a.status];
+    var a=A[idx], st=STATUS[a.vstatus];
     document.getElementById("dStatusBar").style.background=st.bar;
     document.getElementById("dStatusText").textContent=st.text;
     document.getElementById("dStatusIcon").innerHTML='<svg class="lu"><use href="#'+st.icon+'"/></svg>';
     document.getElementById("dName").textContent=a.name;
-    document.getElementById("dPhone").textContent=a.phone;
+    document.getElementById("dPhone").textContent=a.phone||"No number on file";
     var av=document.getElementById("dAv"), ini=initials(a.name);
     if(ini){ av.textContent=ini; av.style.background=AVCOLORS[idx%AVCOLORS.length]; }
     else { av.innerHTML='<svg class="lu" style="width:18px;height:18px"><use href="#i-user"/></svg>'; av.style.background="#9AA0AB"; }
     document.getElementById("dTime").textContent=a.s+" → "+a.e;
-    var mins=(m(a.e)-m(a.s));
-    document.getElementById("dDate").textContent=DAYS[a.day][1].charAt(0)+DAYS[a.day][1].slice(1).toLowerCase()+" "+DAYS[a.day][0]+" Oct · "+mins+" min";
+    var mins=Math.round((a.end-a.start)/60000);
+    document.getElementById("dDate").textContent=WD[a.day].charAt(0)+WD[a.day].slice(1).toLowerCase()+" "+a.start.getDate()+" "+MON[a.start.getMonth()]+" · "+mins+" min";
     var pill=document.getElementById("dStatusPill");
-    pill.textContent=a.status.charAt(0).toUpperCase()+a.status.slice(1); pill.style.color=st.pill; pill.style.background=st.pillbg;
-    document.getElementById("dNote").textContent=a.note;
+    pill.textContent=st.label; pill.style.color=st.pill; pill.style.background=st.pillbg;
+    document.getElementById("dNote").textContent=a.note||"No note on this job.";
     document.getElementById("dSvc").textContent=a.svc;
-    document.getElementById("dAddr").textContent=a.addr;
-    document.getElementById("dStaff").textContent=(a.staff||STAFF[idx%STAFF.length]);
+    document.getElementById("dContact").textContent=a.email||a.phone||"—";
+    document.getElementById("dBookedOn").textContent=a.created?(a.created.getDate()+" "+MON[a.created.getMonth()]+" "+a.created.getFullYear()):"—";
+    var btn=document.getElementById("dBtn");
+    if(a.phone){ btn.style.display=""; btn.onclick=function(){location.href="tel:"+a.phone.replace(/\s+/g,"");}; }
+    else { btn.style.display="none"; }
   }
 
   var detailPanel=document.getElementById("detailPanel"), scrim=document.getElementById("scrim");
@@ -355,9 +453,8 @@ body{background:var(--board-grad);background-attachment:fixed;color:var(--board-
   document.getElementById("dClose").addEventListener("click",closeDrawer);
   scrim.addEventListener("click",closeDrawer);
   document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();});
-  // pre-fill the panel so it isn't empty when first opened, but keep it closed
-  var pre=A.findIndex(function(a){return a.name==="Laura Mäkelä";}); select(pre<0?0:pre);
-  document.querySelectorAll(".appt.sel").forEach(function(n){n.classList.remove("sel");});
+  // Pre-fill the drawer (kept closed) so it isn't blank when first opened.
+  if(A.length){ select(0); document.querySelectorAll(".appt.sel").forEach(function(n){n.classList.remove("sel");}); }
 
   if(!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches)){
     document.querySelectorAll(".tiltcard").forEach(function(card){
