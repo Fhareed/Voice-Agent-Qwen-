@@ -96,6 +96,9 @@ def build_prompt(settings: dict, org_name: str, org_id: str) -> str:
     langnote = _s(s, "languages_note")
     extra = (f"\n- If the caller speaks another language, you may also help in: {langnote}."
              if langnote else "")
+    services = _s(s, "services", "«FILL IN — your main services»")
+    pricing = _s(s, "pricing", "«FILL IN — your call-out fee and hourly rate»")
+    area = _s(s, "service_area", "«FILL IN — the area you cover»")
     return f"""IDENTITY
 You're the receptionist for {name}, a {industry} business. You're on a live phone call. Your name is {agent}. You sound warm, calm, and real — never scripted, never robotic. You exist so no call is ever missed.
 
@@ -120,10 +123,10 @@ MEMORY (never ask twice)
 - If you genuinely missed one thing, ask only for that one thing, casually.
 
 BUSINESS INFO (only use what's here — never invent anything)
-- Services: «FILL IN — your main services»
+- Services: {services}
 - Hours: {hours}
-- Service area: «FILL IN»
-- Pricing: «FILL IN» (say it casually; for anything not listed, a team member will confirm)
+- Service area: {area}
+- Pricing: {pricing} (say it casually; for anything not listed, a team member will confirm)
 
 HANDLING THE CALL
 - Greet, then just answer what they ask — don't interrogate.

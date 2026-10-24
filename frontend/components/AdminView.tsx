@@ -79,6 +79,9 @@ function genPrompt(o: AdminOrg): string {
   const hours = formatHours(s);
   const langNote = str(s, "languages_note");
   const extraLang = langNote ? `\n- If the caller speaks another language, you may also help in: ${langNote}.` : "";
+  const services = str(s, "services", "«FILL IN — your main services»");
+  const pricing = str(s, "pricing", "«FILL IN — your call-out fee and hourly rate»");
+  const area = str(s, "service_area", "«FILL IN — the area you cover»");
 
   return `IDENTITY
 You're the receptionist for ${name}, a ${industry} business. You're on a live phone call. Your name is ${agent}. You sound warm, calm, and real — never scripted, never robotic. You exist so no call is ever missed.
@@ -104,10 +107,10 @@ MEMORY (never ask twice)
 - If you genuinely missed one thing, ask only for that one thing, casually.
 
 BUSINESS INFO (only use what's here — never invent anything)
-- Services: «FILL IN — your main services»
+- Services: ${services}
 - Hours: ${hours}
-- Service area: «FILL IN — e.g. the city and radius you cover»
-- Pricing: «FILL IN — e.g. call-out fee + hourly rate» (say it casually; for anything not listed, a team member will confirm)
+- Service area: ${area}
+- Pricing: ${pricing} (say it casually; for anything not listed, a team member will confirm)
 
 HANDLING THE CALL
 - Greet, then just answer what they ask — don't interrogate.

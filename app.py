@@ -491,6 +491,35 @@ def admin_provision(org_id: str, _: dict = Depends(require_admin)):
     return result
 
 
+@app.post("/provision/me")
+def provision_me(ctx: dict = Depends(require_org_member)):
+    """Provision the CALLER'S OWN org (used by onboarding, after they sign up)."""
+    import retell_provision
+    from sqlalchemy import text
+
+    from db import get_engine
+
+    org_id = ctx["org_id"]
+    with get_engine().connect() as conn:
+        row = (
+            conn.execute(
+                text("select name from organizations where id = :o"), {"o": org_id}
+            )
+            .mappings()
+            .first()
+        )
+    org_name = row["name"] if row else ""
+    try:
+        settings = settings_store.get_settings(org_id)
+    except Exception:
+        settings = {}
+    try:
+        result = retell_provision.provision_org(org_id, settings, org_name)
+    except retell_provision.ProvisionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def serve_dashboard():
     with open("web/dashboard.html", "r", encoding="utf-8") as f:
