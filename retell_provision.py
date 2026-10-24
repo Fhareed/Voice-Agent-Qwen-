@@ -18,7 +18,7 @@ Env it needs:
   RETELL_WEBHOOK_SECRET   optional. If set, the agent's post-call webhook is wired
                           to /retell/webhook/<secret> so calls + transcripts log.
   RETELL_DEFAULT_VOICE_ID optional. Retell voice id (copy it from an existing
-                          agent in the dashboard). Defaults to 11labs-Grace.
+                          agent in the dashboard). Defaults to cartesia-Grace.
   RETELL_LLM_MODEL        optional. Defaults to gpt-5.6-terra.
 """
 import os
@@ -196,7 +196,7 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
         raise ProvisionError(
             "TOOLS_SHARED_SECRET is not set — the booking tools would reject the agent's calls."
         )
-    voice = voice_id or os.getenv("RETELL_DEFAULT_VOICE_ID") or "11labs-Grace"
+    voice = voice_id or os.getenv("RETELL_DEFAULT_VOICE_ID") or "cartesia-Grace"
     model = os.getenv("RETELL_LLM_MODEL", "gpt-5.6-terra")
     lang = _s(settings or {}, "default_language", "English")
     lang_code = _LANG_CODES.get(lang.lower(), "en-US")
