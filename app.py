@@ -6,7 +6,7 @@ import time
 from urllib.parse import quote
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -518,6 +518,50 @@ def provision_me(ctx: dict = Depends(require_org_member)):
     except retell_provision.ProvisionError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
+
+
+# ── Billing (Stripe, pay upfront) ─────────────────────────────────
+@app.post("/billing/checkout")
+def billing_checkout(ctx: dict = Depends(require_org_member)):
+    """Start a Stripe Checkout session for the caller's org. Returns the URL."""
+    import billing
+
+    org_id = ctx["org_id"]
+    settings = settings_store.get_settings(org_id)
+    email = (ctx.get("user") or {}).get("email")
+    name = settings.get("business_name") or ""
+    try:
+        url = billing.create_checkout(org_id, name, email)
+    except billing.BillingError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"url": url}
+
+
+@app.post("/billing/confirm")
+def billing_confirm(body: dict, ctx: dict = Depends(require_org_member)):
+    """After Stripe redirects back: verify the session is paid, then provision."""
+    import billing
+
+    session_id = (body or {}).get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Missing session_id.")
+    try:
+        return billing.confirm_and_provision(ctx["org_id"], session_id)
+    except billing.BillingError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/billing/webhook")
+async def billing_webhook(request: Request):
+    """Stripe webhook — the backup path that marks the org paid + provisions."""
+    import billing
+
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        return billing.handle_webhook(payload, sig)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Webhook error: {e}")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

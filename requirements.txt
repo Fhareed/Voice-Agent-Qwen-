@@ -48,3 +48,6 @@ twilio                     # SMS booking confirmations
 #   pip install pyaudio      (on macOS, first run:  brew install portaudio)
 # It is left out of the main list because it depends on a system audio library
 # and would otherwise break `pip install -r requirements.txt` on servers.
+
+# ── Billing ────────────────────────────────────────────────
+stripe

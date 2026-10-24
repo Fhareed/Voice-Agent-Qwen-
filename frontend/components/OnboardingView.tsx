@@ -55,14 +55,13 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
   const [to, setTo] = useState("17:00");
   const [openSat, setOpenSat] = useState(false);
 
-  const [phase, setPhase] = useState<"form" | "working" | "partial">("form");
+  const [phase, setPhase] = useState<"form" | "redirecting">("form");
   const [error, setError] = useState<string | null>(null);
-  const [agentId, setAgentId] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setPhase("working");
+    setPhase("redirecting");
 
     const patch: Record<string, unknown> = {
       business_name: businessName,
@@ -72,11 +71,10 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       service_area: area,
       default_language: language,
       always_open: alwaysOpen,
-      onboarded: true,
     };
     if (!alwaysOpen) patch.hours = buildHours(from, to, openSat);
 
-    // 1) Save the business details.
+    // 1) Save the business details (onboarded is set only after payment).
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
@@ -95,53 +93,29 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       return;
     }
 
-    // 2) Provision the Retell agent.
+    // 2) Send them to Stripe Checkout. On return, /app/welcome provisions.
     try {
-      const res = await fetch("/api/onboarding/provision", { method: "POST" });
+      const res = await fetch("/api/billing/checkout", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // Details are saved; finishing setup hit a snag. Let them in anyway.
-        setError(data.error || "We couldn't finish setting up your phone agent.");
-        setPhase("partial");
+      if (!res.ok || !data.url) {
+        setError(data.error || "Couldn't start checkout. Try again.");
+        setPhase("form");
         return;
       }
-      setAgentId(data.agent_id ?? null);
+      window.location.href = data.url;
     } catch {
-      setError("We couldn't finish setting up your phone agent.");
-      setPhase("partial");
-      return;
+      setError("Couldn't reach the server. Try again.");
+      setPhase("form");
     }
-
-    router.replace("/app");
-    router.refresh();
   }
 
-  if (phase === "working") {
+  if (phase === "redirecting") {
     return (
       <div className="grid min-h-screen place-items-center bg-cream px-6">
         <div className="flex max-w-sm flex-col items-center text-center">
           <span className="mb-5 inline-block h-10 w-10 animate-spin rounded-full border-[3px] border-[#E7E6EC] border-t-cobalt" />
-          <h1 className="font-display text-[22px] font-bold text-[#161616]">Setting up your receptionist…</h1>
-          <p className="mt-2 text-[14px] text-[#6B6B70]">Writing your script, creating your voice agent, and wiring up bookings. This takes a few seconds.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (phase === "partial") {
-    return (
-      <div className="grid min-h-screen place-items-center bg-cream px-6">
-        <div className="max-w-md rounded-2xl border border-[#E7E6EC] bg-white p-8 text-center shadow-[0_10px_28px_rgba(23,23,23,0.06)]">
-          <h1 className="font-display text-[22px] font-bold text-[#161616]">Almost there</h1>
-          <p className="mt-2 text-[14px] text-[#6B6B70]">Your details are saved. We hit a snag finishing your phone agent — nothing you did wrong, and we&apos;ll get it sorted shortly.</p>
-          {error && <p className="mt-3 rounded-xl border border-[#F5D6C6] bg-[#FDEFE7] px-3 py-2 text-[13px] font-semibold text-[#B3541F]">{error}</p>}
-          <button
-            type="button"
-            onClick={() => { router.replace("/app"); router.refresh(); }}
-            className="mt-5 inline-block rounded-full bg-cobalt px-6 py-2.5 font-display text-[14px] font-bold text-white"
-          >
-            Go to my dashboard
-          </button>
+          <h1 className="font-display text-[22px] font-bold text-[#161616]">Taking you to secure checkout…</h1>
+          <p className="mt-2 text-[14px] text-[#6B6B70]">You&apos;ll come right back, and your receptionist is set up automatically once payment clears.</p>
         </div>
       </div>
     );
@@ -226,9 +200,9 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
             type="submit"
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-cobalt px-6 py-3 font-display text-[15px] font-bold text-white shadow-[0_10px_22px_rgba(47,107,255,0.28)] transition-opacity hover:opacity-95"
           >
-            Create my receptionist
+            Continue to payment
           </button>
-          <p className="mt-3 text-center text-[12px] text-[#9AA0AB]">You can change any of this later in Settings.</p>
+          <p className="mt-3 text-center text-[12px] text-[#9AA0AB]">Secure checkout by Stripe · you can change any of this later in Settings.</p>
         </form>
       </div>
     </div>
