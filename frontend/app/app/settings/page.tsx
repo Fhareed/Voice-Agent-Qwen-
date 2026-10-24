@@ -15,7 +15,7 @@ export default async function SettingsPage() {
   try {
     settings = await fetchSettings(session);
   } catch (e) {
-    if (e instanceof AuthError) redirect("/login");
+    if (e instanceof AuthError) redirect("/api/auth/logout");
     loadError = true;
   }
 

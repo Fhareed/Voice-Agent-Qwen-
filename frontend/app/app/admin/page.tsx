@@ -21,7 +21,7 @@ export default async function AdminPage() {
   try {
     orgs = await fetchAdminOrgs(session);
   } catch (e) {
-    if (e instanceof AuthError) redirect("/login");
+    if (e instanceof AuthError) redirect("/api/auth/logout");
     if (e instanceof AdminForbiddenError) forbidden = true;
     else loadError = true;
   }

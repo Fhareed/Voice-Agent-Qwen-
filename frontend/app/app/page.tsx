@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   try {
     [calls, bookings] = await Promise.all([fetchCalls(session), fetchBookings(session)]);
   } catch (e) {
-    if (e instanceof AuthError) redirect("/login");
+    if (e instanceof AuthError) redirect("/api/auth/logout");
     loadError = true;
   }
 
