@@ -6,7 +6,7 @@ import time
 from urllib.parse import quote
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -379,6 +379,87 @@ def get_settings_endpoint(ctx: dict = Depends(require_org_member)):
 def patch_settings_endpoint(body: dict, ctx: dict = Depends(require_org_member)):
     """Merge a patch into this org's settings and return the full settings."""
     return {"settings": settings_store.save_settings(ctx["org_id"], body)}
+
+
+# ── Admin (founder-only): onboarding cockpit ──────────────────────
+# Lists every org with the values needed to wire it into Retell by hand.
+# Gated by ADMIN_EMAILS (comma-separated) in the environment: the logged-in
+# user's email must be in that list, or the endpoint returns 403.
+def _admin_emails() -> set:
+    raw = os.getenv("ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Allow only a logged-in user whose email is in ADMIN_EMAILS."""
+    allow = _admin_emails()
+    email = (user.get("email") or "").lower()
+    if not allow or email not in allow:
+        raise HTTPException(status_code=403, detail="Admin access only.")
+    return user
+
+
+@app.get("/admin/orgs")
+def admin_list_orgs(_: dict = Depends(require_admin)):
+    """Every org + the values needed to provision it in Retell (founder only)."""
+    from db import get_engine
+    from sqlalchemy import text
+
+    with get_engine().connect() as conn:
+        orgs = (
+            conn.execute(
+                text("select id, name, created_at from organizations order by created_at desc")
+            )
+            .mappings()
+            .all()
+        )
+        call_counts = {
+            str(r[0]): int(r[1])
+            for r in conn.execute(
+                text("select org_id, count(*) from call_logs group by org_id")
+            ).all()
+        }
+        book_counts = {
+            str(r[0]): int(r[1])
+            for r in conn.execute(
+                text("select org_id, count(*) from bookings group by org_id")
+            ).all()
+        }
+
+    # Owner login emails — best effort (auth.users may not be readable by this
+    # role). Isolated in its own connection so a failure never breaks the page.
+    owner_emails: dict = {}
+    try:
+        with get_engine().connect() as c2:
+            for r in c2.execute(
+                text(
+                    "select m.org_id, u.email from memberships m "
+                    "join auth.users u on u.id = m.user_id where m.role = 'owner'"
+                )
+            ).all():
+                owner_emails.setdefault(str(r[0]), r[1])
+    except Exception:
+        owner_emails = {}
+
+    out = []
+    for o in orgs:
+        oid = str(o["id"])
+        try:
+            settings = settings_store.get_settings(oid)
+        except Exception:
+            settings = {}
+        out.append(
+            {
+                "org_id": oid,
+                "name": o["name"],
+                "created_at": o["created_at"].isoformat() if o["created_at"] else None,
+                "owner_email": owner_emails.get(oid),
+                "settings": settings,
+                "calls": call_counts.get(oid, 0),
+                "bookings": book_counts.get(oid, 0),
+            }
+        )
+    return {"orgs": out}
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

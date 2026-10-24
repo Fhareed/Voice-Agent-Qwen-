@@ -65,3 +65,29 @@ export async function fetchSettings(session: Session): Promise<Settings> {
   const data = await backendGet<{ settings: Settings }>("/settings", session);
   return data.settings ?? {};
 }
+
+// ── Admin (founder-only) ──────────────────────────────────────────
+export interface AdminOrg {
+  org_id: string;
+  name: string;
+  created_at: string | null;
+  owner_email: string | null;
+  settings: Settings;
+  calls: number;
+  bookings: number;
+}
+
+/** Thrown when the backend returns 403 — logged in, but not an admin. */
+export class AdminForbiddenError extends Error {}
+
+export async function fetchAdminOrgs(session: Session): Promise<AdminOrg[]> {
+  const res = await fetch(`${BACKEND_URL}/admin/orgs`, {
+    headers: authHeaders(session),
+    cache: "no-store",
+  });
+  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 401) throw new AuthError("Not authorized for /admin/orgs");
+  if (!res.ok) throw new Error(`Backend /admin/orgs failed: ${res.status}`);
+  const data = (await res.json()) as { orgs: AdminOrg[] };
+  return data.orgs ?? [];
+}
