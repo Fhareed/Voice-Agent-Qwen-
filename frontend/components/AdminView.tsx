@@ -125,6 +125,16 @@ TOOLS
 - On EVERY tool call, pass org_id = "${o.org_id}". Keep speaking ${lang} after any tool call.`;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Locale-independent so server and client render the same string (no hydration mismatch).
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -142,7 +152,7 @@ function OrgCard({ org, baseUrl, wired, toggleWired }: { org: AdminOrg; baseUrl:
   const title = str(s, "business_name", org.name || "Untitled business");
   const email = str(s, "contact_email") || org.owner_email || "—";
   const phone = str(s, "phone_number", "—");
-  const created = org.created_at ? new Date(org.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const created = fmtDate(org.created_at);
   const base = (baseUrl || "«set your ngrok URL above»").replace(/\/+$/, "");
   const prompt = useMemo(() => genPrompt(org), [org]);
 
