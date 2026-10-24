@@ -146,6 +146,26 @@ function OrgCard({ org, baseUrl, wired, toggleWired }: { org: AdminOrg; baseUrl:
   const base = (baseUrl || "«set your ngrok URL above»").replace(/\/+$/, "");
   const prompt = useMemo(() => genPrompt(org), [org]);
 
+  const [prov, setProv] = useState<{ loading: boolean; agentId?: string; next?: string; error?: string }>({ loading: false });
+  async function provision() {
+    setProv({ loading: true });
+    try {
+      const res = await fetch("/api/admin/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ org_id: org.org_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setProv({ loading: false, error: data.error || "Provisioning failed." });
+        return;
+      }
+      setProv({ loading: false, agentId: data.agent_id, next: data.next });
+    } catch {
+      setProv({ loading: false, error: "Couldn't reach the server." });
+    }
+  }
+
   const tools = [
     ["check_availability", `${base}/tools/check_availability`],
     ["book_appointment", `${base}/tools/book_appointment`],
@@ -168,8 +188,34 @@ function OrgCard({ org, baseUrl, wired, toggleWired }: { org: AdminOrg; baseUrl:
         </label>
       </div>
 
+      <div className="mt-4 rounded-xl border border-cobalt/25 bg-cobalt/[0.04] p-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-display text-[14px] font-bold text-[#161616]">Provision automatically</div>
+            <div className="text-[12.5px] text-[#8E8E92]">Creates the Retell agent (prompt + tools + voice) for this business in one click.</div>
+          </div>
+          <button
+            type="button"
+            onClick={provision}
+            disabled={prov.loading}
+            className="inline-flex items-center gap-2 rounded-full bg-cobalt px-4 py-2 font-display text-[13px] font-bold text-white shadow-[0_8px_18px_rgba(47,107,255,0.26)] transition-opacity disabled:opacity-50"
+          >
+            {prov.loading ? "Provisioning…" : prov.agentId ? "Re-provision" : "Provision in Retell"}
+          </button>
+        </div>
+        {prov.agentId && (
+          <div className="mt-2.5 rounded-lg bg-mint/10 px-3 py-2 text-[12.5px] text-[#0E8F63]">
+            <span className="font-bold">Agent created:</span> <code className="font-mono text-[#2A2A2E]">{prov.agentId}</code>
+            {prov.next && <div className="mt-1 text-[#2A2A2E]">{prov.next}</div>}
+          </div>
+        )}
+        {prov.error && (
+          <div className="mt-2.5 rounded-lg bg-[#FDEFE7] px-3 py-2 text-[12.5px] font-semibold text-[#B3541F]">{prov.error}</div>
+        )}
+      </div>
+
       <div className="mt-4 space-y-2.5">
-        <div className="text-[12px] font-bold uppercase tracking-wide text-[#9AA0AB]">Paste into Retell</div>
+        <div className="text-[12px] font-bold uppercase tracking-wide text-[#9AA0AB]">Or wire it by hand</div>
         <Field label="Org ID" value={org.org_id} />
         {tools.map(([label, url]) => (
           <Field key={label} label={label} value={url} />

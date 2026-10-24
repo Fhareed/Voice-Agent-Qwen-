@@ -462,6 +462,35 @@ def admin_list_orgs(_: dict = Depends(require_admin)):
     return {"orgs": out}
 
 
+@app.post("/admin/provision/{org_id}")
+def admin_provision(org_id: str, _: dict = Depends(require_admin)):
+    """Create this org's Retell agent (LLM + agent) automatically. Founder only."""
+    import retell_provision
+    from sqlalchemy import text
+
+    from db import get_engine
+
+    with get_engine().connect() as conn:
+        row = (
+            conn.execute(
+                text("select name from organizations where id = :o"), {"o": org_id}
+            )
+            .mappings()
+            .first()
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    try:
+        settings = settings_store.get_settings(org_id)
+    except Exception:
+        settings = {}
+    try:
+        result = retell_provision.provision_org(org_id, settings, row["name"])
+    except retell_provision.ProvisionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def serve_dashboard():
     with open("web/dashboard.html", "r", encoding="utf-8") as f:
