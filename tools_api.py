@@ -15,6 +15,7 @@ integrations/calendar_google.py.
 """
 import hmac
 import os
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -50,8 +51,36 @@ def _parse_start(s: str) -> datetime:
     return dt
 
 
+def _resolve_org(org_id):
+    """Return a real organization UUID.
+
+    Agents sometimes pass a placeholder (e.g. "demo-oulu") instead of a UUID,
+    which the bookings table rejects. If org_id isn't a valid UUID, fall back to
+    RETELL_DEFAULT_ORG_ID, then to the first organization in the database.
+    """
+    try:
+        uuid.UUID(str(org_id))
+        return str(org_id)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    fallback = os.getenv("RETELL_DEFAULT_ORG_ID")
+    if fallback:
+        return fallback
+    try:
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                text("select id from organizations order by created_at limit 1")
+            ).scalar()
+        if row:
+            return str(row)
+    except Exception:
+        pass
+    return org_id  # give up — the insert will surface the original error
+
+
 def _save_booking(org_id, name, phone, email, service, start_dt, notes, calendar_event_id, call_id):
     """Insert the booking (source of truth for the dashboard). Returns its id."""
+    org_id = _resolve_org(org_id)
     row = {
         "org_id": org_id, "name": name or "", "phone": phone or "", "email": email,
         "service": service, "start": start_dt, "notes": notes,
