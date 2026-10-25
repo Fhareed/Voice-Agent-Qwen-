@@ -42,6 +42,15 @@ def _app_url() -> str:
     return (os.getenv("PUBLIC_APP_URL") or "http://localhost:3000").rstrip("/")
 
 
+def _sv(obj, key, default=None):
+    """Read a field from a Stripe object (a StripeObject doesn't support .get())."""
+    try:
+        val = getattr(obj, key)
+    except Exception:
+        return default
+    return default if val is None else val
+
+
 def create_checkout(org_id: str, business_name: str, email: str | None) -> str:
     """Create a subscription Checkout Session for this org; return its URL."""
     stripe = _stripe()
@@ -86,12 +95,12 @@ def confirm_and_provision(org_id: str, session_id: str) -> dict:
     """Verify a returned Checkout session is paid (and ours), then provision."""
     stripe = _stripe()
     session = stripe.checkout.Session.retrieve(session_id)
-    meta_org = (session.get("metadata") or {}).get("org_id")
+    meta_org = _sv(_sv(session, "metadata") or {}, "org_id")
     if meta_org and meta_org != org_id:
         raise BillingError("This payment doesn't belong to your account.")
-    if session.get("payment_status") != "paid" and session.get("status") != "complete":
+    if _sv(session, "payment_status") != "paid" and _sv(session, "status") != "complete":
         raise BillingError("Payment hasn't completed yet.")
-    agent_id = _mark_paid_and_provision(org_id, session.get("customer"), session.get("subscription"))
+    agent_id = _mark_paid_and_provision(org_id, _sv(session, "customer"), _sv(session, "subscription"))
     return {"paid": True, "agent_id": agent_id}
 
 
@@ -104,7 +113,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
     event = stripe.Webhook.construct_event(payload, sig_header, secret)
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        org_id = (session.get("metadata") or {}).get("org_id")
+        org_id = _sv(_sv(session, "metadata") or {}, "org_id")
         if org_id:
-            _mark_paid_and_provision(org_id, session.get("customer"), session.get("subscription"))
+            _mark_paid_and_provision(org_id, _sv(session, "customer"), _sv(session, "subscription"))
     return {"received": True}
