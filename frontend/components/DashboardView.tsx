@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Icon from "./Icon";
 import Sidebar from "./Sidebar";
+import CallDetail from "./CallDetail";
 import type { Booking, Call } from "@/lib/types";
 
 const AV = ["#64748B", "#3F8F86", "#A9795A", "#7E6A99", "#B5697A", "#4E79B8", "#5B6CB0"];
@@ -110,6 +112,60 @@ export default function DashboardView({
   loadError?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [selected, setSelected] = useState<Call | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function changeStatus(next: "resolved" | "unresolved") {
+    if (!selected) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/calls/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setActionError(data.error || "Could not update the call.");
+        return;
+      }
+      setSelected({ ...selected, status: next });
+      router.refresh();
+    } catch {
+      setActionError("Couldn't reach the server. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeCall() {
+    if (!selected) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/calls/${selected.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setActionError(data.error || "Could not delete the call.");
+        return;
+      }
+      setSelected(null);
+      router.refresh();
+    } catch {
+      setActionError("Couldn't reach the server. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeDetail() {
+    if (busy) return;
+    setSelected(null);
+    setActionError(null);
+  }
 
   const d = useMemo(() => {
     const now = new Date();
@@ -148,7 +204,7 @@ export default function DashboardView({
         "No summary yet.";
       const meta = [when(c.created_at), dur(c.duration_sec), lang(c.language)].filter(Boolean).join(" · ");
       const ini = initials(c.caller_name);
-      return { k, name, snip, meta, ini, color: AV[idx % AV.length] };
+      return { k, name, snip, meta, ini, color: AV[idx % AV.length], call: c };
     });
 
     const unresolved = calls.filter((c) => c.status !== "resolved");
@@ -309,7 +365,19 @@ export default function DashboardView({
                 d.cards.map((c, i) => {
                   const p = PILL[c.k];
                   return (
-                    <div className={`card ${p.cls}`} key={i}>
+                    <div
+                      className={`card ${p.cls}`}
+                      key={i}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelected(c.call)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelected(c.call);
+                        }
+                      }}
+                    >
                       <div className="r1"><span className="pill">{p.label}</span><span className="time">{c.meta}</span></div>
                       <div className="who">{c.name}</div>
                       <div className="snip">{c.snip}</div>
@@ -396,6 +464,16 @@ export default function DashboardView({
           </div>
         </div>
       </main>
+      {selected && (
+        <CallDetail
+          call={selected}
+          onClose={closeDetail}
+          onStatusChange={changeStatus}
+          onDelete={removeCall}
+          busy={busy}
+          error={actionError}
+        />
+      )}
     </div>
   );
 }

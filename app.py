@@ -328,6 +328,14 @@ def finalize_call(call_row_id: str, ctx: dict = Depends(require_org_member)):
     return {"ok": True, "id": call_row_id, **fields}
 
 
+@app.delete("/calls/{call_row_id}")
+def delete_call_endpoint(call_row_id: str, ctx: dict = Depends(require_org_member)):
+    """Remove a call from the dashboard (text log only; never touches audio)."""
+    if not call_logs.delete_call(ctx["org_id"], call_row_id):
+        return JSONResponse({"error": "Call not found."}, status_code=404)
+    return {"ok": True, "id": call_row_id}
+
+
 # ── Bookings (owner-facing, per org) ──────────────────────────────
 # Bookings are WRITTEN live during a call by /tools/book_appointment. These
 # endpoints are the dashboard's read + manage side.

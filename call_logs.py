@@ -151,6 +151,19 @@ def set_status(org_id: str, call_row_id: str, status: str) -> None:
         )
 
 
+def delete_call(org_id: str, call_row_id: str) -> bool:
+    """Remove a call from the dashboard. Returns True if a row was deleted.
+
+    Scoped to the org, so one business can never delete another's call.
+    """
+    with get_engine().begin() as conn:
+        res = conn.execute(
+            text("delete from call_logs where org_id = :org and id = :id"),
+            {"org": org_id, "id": call_row_id},
+        )
+        return res.rowcount > 0
+
+
 def save_extract(org_id: str, call_row_id: str, fields: dict) -> None:
     """Store the lead details pulled out of the transcript when the call ended."""
     with get_engine().begin() as conn:
