@@ -410,8 +410,9 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
 @app.get("/admin/orgs")
 def admin_list_orgs(_: dict = Depends(require_admin)):
     """Every org + the values needed to provision it in Retell (founder only)."""
-    from db import get_engine
     from sqlalchemy import text
+
+    from db import get_engine
 
     with get_engine().connect() as conn:
         orgs = (
@@ -473,9 +474,9 @@ def admin_list_orgs(_: dict = Depends(require_admin)):
 @app.post("/admin/provision/{org_id}")
 def admin_provision(org_id: str, _: dict = Depends(require_admin)):
     """Create this org's Retell agent (LLM + agent) automatically. Founder only."""
-    import retell_provision
     from sqlalchemy import text
 
+    import retell_provision
     from db import get_engine
 
     with get_engine().connect() as conn:
@@ -502,9 +503,9 @@ def admin_provision(org_id: str, _: dict = Depends(require_admin)):
 @app.post("/provision/me")
 def provision_me(ctx: dict = Depends(require_org_member)):
     """Provision the CALLER'S OWN org (used by onboarding, after they sign up)."""
-    import retell_provision
     from sqlalchemy import text
 
+    import retell_provision
     from db import get_engine
 
     org_id = ctx["org_id"]
