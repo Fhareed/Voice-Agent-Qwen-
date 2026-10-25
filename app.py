@@ -549,6 +549,10 @@ def billing_confirm(body: dict, ctx: dict = Depends(require_org_member)):
         return billing.confirm_and_provision(ctx["org_id"], session_id)
     except billing.BillingError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {e}")
 
 
 @app.post("/billing/webhook")
