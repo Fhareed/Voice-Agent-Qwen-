@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -207,7 +208,70 @@ async def upload_document(
     finally:
         os.remove(tmp_path)
 
+    _log_kb_source(org_id, "file", file.filename or "document", chunks)
     return {"org_id": org_id, "filename": file.filename, "chunks_added": chunks}
+
+
+# ── Knowledge base (owner-facing, per org) ────────────────────────
+def _log_kb_source(org_id: str, kind: str, name: str, chunks: int) -> None:
+    """Record what was added to an org's knowledge base so the owner can see what
+    their receptionist knows. Stored in the org's settings blob (no new table).
+    Never raises — logging a source must not break an ingest."""
+    try:
+        settings = settings_store.get_settings(org_id) or {}
+        sources = settings.get("kb_sources") or []
+        sources.insert(0, {
+            "kind": kind,
+            "name": name,
+            "chunks": int(chunks or 0),
+            "added_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        })
+        settings_store.save_settings(org_id, {"kb_sources": sources[:200]})
+    except Exception:
+        pass
+
+
+@app.get("/kb")
+def get_kb_status(ctx: dict = Depends(require_org_member)):
+    """Whether the caller's org has a knowledge base yet, and what's in it."""
+    org_id = ctx["org_id"]
+    settings = settings_store.get_settings(org_id) or {}
+    return {"has_kb": _vs().has_index(org_id), "sources": settings.get("kb_sources") or []}
+
+
+class KbTextIn(BaseModel):
+    title: str = ""
+    text: str
+
+
+@app.post("/kb/text")
+def add_kb_text(body: KbTextIn, ctx: dict = Depends(require_org_member)):
+    """Add a plain-text note / FAQ to the caller's org knowledge base."""
+    text = (body.text or "").strip()
+    if not text:
+        return JSONResponse({"error": "Nothing to add — the text is empty."}, status_code=400)
+    org_id = ctx["org_id"]
+    chunks = _vs().add_documents(org_id, texts=[text])
+    _log_kb_source(org_id, "text", (body.title or "").strip() or "Note", chunks)
+    return {"ok": True, "chunks_added": chunks}
+
+
+@app.get("/kb/chunks")
+def get_kb_chunks(ctx: dict = Depends(require_org_member)):
+    """Return the actual text chunks in the caller's knowledge base, for review."""
+    return {"chunks": _vs().list_chunks(ctx["org_id"])}
+
+
+@app.delete("/kb")
+def clear_kb(ctx: dict = Depends(require_org_member)):
+    """Wipe the caller's knowledge base (index + logged sources)."""
+    org_id = ctx["org_id"]
+    removed = _vs().reset_index(org_id)
+    try:
+        settings_store.save_settings(org_id, {"kb_sources": []})
+    except Exception:
+        pass
+    return {"ok": True, "removed": bool(removed)}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -678,6 +742,7 @@ def scrape_endpoint(body: ScrapeIn, ctx: dict = Depends(require_org_member)):
     except Exception:
         return JSONResponse({"error": "Couldn't reach that site right now."}, status_code=502)
     chunks = _vs().add_documents(ctx["org_id"], texts=[result["text"]])
+    _log_kb_source(ctx["org_id"], "website", body.url, chunks)
     return {
         "ok": True, "org_id": ctx["org_id"],
         "pages": result["pages"], "chars": result["chars"], "chunks": chunks,

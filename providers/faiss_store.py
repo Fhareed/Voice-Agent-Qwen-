@@ -32,3 +32,13 @@ class FAISSStore(VectorStoreProvider):
         from kb import has_index
 
         return has_index(org_id)
+
+    def list_chunks(self, org_id: str, limit: int = 500) -> list[dict]:
+        from kb import list_chunks
+
+        return list_chunks(org_id, limit=limit)
+
+    def reset_index(self, org_id: str) -> bool:
+        from kb import reset_index
+
+        return reset_index(org_id)

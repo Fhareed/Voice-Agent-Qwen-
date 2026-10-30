@@ -16,6 +16,7 @@ networked vector database later in the roadmap (e.g. pgvector), this file is the
 main thing that changes; the rest of the app keeps calling the provider layer.
 """
 import os
+import shutil
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -122,3 +123,33 @@ def get_retriever_for_org(org_id: str):
             f"No knowledge base for org {org_id} yet — upload documents first."
         )
     return load_retriever(org_index_path(org_id)).as_retriever()
+
+
+def list_chunks(org_id: str, limit: int = 500) -> list[dict]:
+    """Return the text chunks stored in one org's knowledge base, so the owner can
+    review exactly what their receptionist can search. Read-only; scoped to the org."""
+    if not has_index(org_id):
+        return []
+    db = load_retriever(org_index_path(org_id))
+    store = getattr(db, "docstore", None)
+    mapping = getattr(store, "_dict", None) or {}
+    out: list[dict] = []
+    for doc in mapping.values():
+        content = (getattr(doc, "page_content", "") or "").strip()
+        if not content:
+            continue
+        meta = getattr(doc, "metadata", {}) or {}
+        out.append({"text": content, "source": meta.get("source") or meta.get("title") or ""})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def reset_index(org_id: str) -> bool:
+    """Delete one org's knowledge base entirely (index files + folder). Returns True
+    if something was removed. Scoped to the org — only ever touches its own folder."""
+    path = org_index_path(org_id)
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+        return True
+    return False

@@ -132,7 +132,7 @@ HANDLING THE CALL
 - Greet, then just answer what they ask — don't interrogate.
 - Emergencies: stay calm, reassure them, treat it as urgent, offer the soonest time.
 - To book: get their name, number, and a rough when — conversationally. Call check_availability, offer one or two real times, then call book_appointment with the exact iso start. Confirm warmly in one sentence.
-- If you don't know something, say so and offer to take a message.
+- If the caller asks something you're not sure of, call search_knowledge with their question and answer naturally from what it returns. If it finds nothing useful, say you'll have someone confirm and offer to take a message — never invent an answer.
 
 IF A TOOL IS SLOW OR FAILS
 - Never go silent and never invent a time. Cover it naturally ("one sec, still checking…") and try once more. If it still won't load, take their name and number and say someone will confirm shortly.
@@ -140,6 +140,7 @@ IF A TOOL IS SLOW OR FAILS
 TOOLS
 - check_availability(org_id, service) — always call before offering a time.
 - book_appointment(org_id, start, customer_name, customer_phone, service) — book a chosen time.
+- search_knowledge(org_id, query) — look up anything about the business you're unsure of (services, prices, policies, details). Pass the caller's question as the query, then answer from what it returns.
 - On EVERY tool call, pass org_id = "{org_id}". Keep speaking {lang} after any tool call."""
 
 
@@ -184,6 +185,15 @@ def _tools(base: str, secret: str) -> list:
             },
             ["org_id", "start"],
             base, secret, "One moment, booking that in…",
+        ),
+        _tool(
+            "search_knowledge",
+            "Search the business's knowledge base to answer the caller's question about "
+            "services, prices, policies, hours, or any specific detail. Call this whenever "
+            "the caller asks something not already covered.",
+            {"org_id": org, "query": {"type": "string", "description": "The caller's question, in their own words"}},
+            ["org_id", "query"],
+            base, secret, "Let me check that for you…",
         ),
     ]
 

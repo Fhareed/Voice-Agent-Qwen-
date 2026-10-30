@@ -173,3 +173,38 @@ def book_appointment(body: BookIn, _: None = Depends(verify_secret)):
 @router.post("/send_sms")
 def send_sms(body: SmsIn, _: None = Depends(verify_secret)):
     return sms_twilio.send(body.to, body.message)
+
+
+class SearchKnowledgeIn(BaseModel):
+    org_id: str
+    query: str = ""
+
+
+@router.post("/search_knowledge")
+def search_knowledge(body: SearchKnowledgeIn, _: None = Depends(verify_secret)):
+    """Search the business's knowledge base to answer a caller's question.
+
+    Retrieval only — returns the most relevant passages for the agent's own LLM to
+    phrase. Tenant-scoped: only ever searches this org's own documents.
+    """
+    import kb
+
+    org_id = _resolve_org(body.org_id)
+    query = (body.query or "").strip()
+    if not query or not kb.has_index(org_id):
+        return {"found": False, "context": ""}
+    try:
+        retriever = kb.get_retriever_for_org(org_id)
+        try:
+            docs = retriever.invoke(query)
+        except AttributeError:
+            docs = retriever.get_relevant_documents(query)
+    except Exception:
+        return {"found": False, "context": ""}
+    passages = []
+    for d in (docs or [])[:4]:
+        t = (getattr(d, "page_content", "") or "").strip()
+        if t:
+            passages.append(t)
+    context = "\n\n".join(passages)
+    return {"found": bool(context), "context": context}

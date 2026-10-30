@@ -66,6 +66,24 @@ export async function fetchSettings(session: Session): Promise<Settings> {
   return data.settings ?? {};
 }
 
+// ── Knowledge base (per org) ───────────────────────────────────────
+export interface KbSource {
+  kind: string; // "file" | "website" | "text"
+  name: string;
+  chunks: number;
+  added_at: string | null;
+}
+
+export interface KbStatus {
+  has_kb: boolean;
+  sources: KbSource[];
+}
+
+export async function fetchKb(session: Session): Promise<KbStatus> {
+  const data = await backendGet<KbStatus>("/kb", session);
+  return { has_kb: !!data.has_kb, sources: data.sources ?? [] };
+}
+
 // ── Admin (founder-only) ──────────────────────────────────────────
 export interface AdminOrg {
   org_id: string;

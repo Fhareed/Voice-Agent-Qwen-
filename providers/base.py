@@ -61,3 +61,11 @@ class VectorStoreProvider(ABC):
     def has_index(self, org_id: str) -> bool:
         """True if this org already has a knowledge base."""
         ...
+
+    def list_chunks(self, org_id: str, limit: int = 500) -> list[dict]:
+        """Return this org's stored text chunks for review. Optional; default empty."""
+        return []
+
+    def reset_index(self, org_id: str) -> bool:
+        """Delete this org's knowledge base. Optional; default no-op."""
+        return False
