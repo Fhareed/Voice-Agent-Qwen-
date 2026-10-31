@@ -133,9 +133,32 @@ def check_availability(body: CheckAvailabilityIn, _: None = Depends(verify_secre
 
 
 @router.post("/book_appointment")
-def book_appointment(body: BookIn, _: None = Depends(verify_secret)):
+def book_appointment(
+    body: BookIn,
+    _: None = Depends(verify_secret),
+    x_caller_number: str = Header(default=""),
+):
     start_dt = _parse_start(body.start)
     service = body.service or "appointment"
+    # The caller's number comes straight from the phone network: Retell injects it
+    # into the X-Caller-Number header as {{user_number}}, so the agent never has to
+    # ask for it. Fall back to anything the agent passed.
+    phone = (x_caller_number or "").strip() or (body.customer_phone or "").strip()
+
+    # A clear, human-readable description so the business knows what the booking is
+    # for at a glance — only the fields we actually have.
+    desc_lines = ["Booked by LumiDesk (AI receptionist)."]
+    if service:
+        desc_lines.append(f"Service: {service}")
+    if body.customer_name:
+        desc_lines.append(f"Customer: {body.customer_name}")
+    if phone:
+        desc_lines.append(f"Phone: {phone}")
+    if body.customer_email:
+        desc_lines.append(f"Email: {body.customer_email}")
+    if body.notes:
+        desc_lines.append(f"Details: {body.notes}")
+    description = "\n".join(desc_lines)
 
     # 1) real calendar event on the business's own calendar (skipped if not connected)
     org = _resolve_org(body.org_id)
@@ -143,10 +166,10 @@ def book_appointment(body: BookIn, _: None = Depends(verify_secret)):
     if calendar_google.is_configured(org):
         try:
             event_id = calendar_google.create_event(
-                summary=f"{service} — {body.customer_name or body.customer_phone}",
+                summary=f"{service} — {body.customer_name or phone or 'caller'}",
                 start_dt=start_dt,
-                description=f"Booked by LumiDesk.\nPhone: {body.customer_phone}\nNotes: {body.notes}",
-                attendee_email=body.customer_email,
+                description=description,
+                attendee_email=None,  # service account can't invite guests; email is in the description
                 org_id=org,
             )
         except Exception as e:
@@ -157,16 +180,16 @@ def book_appointment(body: BookIn, _: None = Depends(verify_secret)):
 
     # 2) source-of-truth row for the dashboard
     booking_id = _save_booking(
-        body.org_id, body.customer_name, body.customer_phone, body.customer_email,
+        body.org_id, body.customer_name, phone, body.customer_email,
         service, start_dt, body.notes, event_id, body.call_id,
     )
 
     # 3) confirmation text to the caller
     spoken = _speak(start_dt)
     sms_result = {"sent": False, "reason": "no_phone"}
-    if body.customer_phone:
+    if phone:
         sms_result = sms_twilio.send(
-            body.customer_phone,
+            phone,
             f"You're booked for {service} on {spoken}. Reply here if you need to change it.",
         )
 
