@@ -192,14 +192,20 @@ def create_event(summary, start_dt, description="", attendee_email=None, org_id=
         raise RuntimeError("Google Calendar is not connected for this business yet.")
     slot_min = int(os.getenv("BOOKING_SLOT_MINUTES", "60"))
     end_dt = start_dt + timedelta(minutes=slot_min)
+    # We do NOT add the caller as a Google "attendee". A service account that
+    # reaches the calendar through sharing can't invite guests without Google
+    # Workspace domain-wide delegation (impossible on a personal Gmail), and
+    # attempting it makes the whole event insert fail. Keep the caller's email in
+    # the event details instead, so the info is preserved and the event always
+    # lands on the calendar.
+    if attendee_email:
+        description = (f"{description}\nCaller email: {attendee_email}").strip()
     event = {
         "summary": summary,
         "description": description,
         "start": {"dateTime": start_dt.isoformat()},
         "end": {"dateTime": end_dt.isoformat()},
     }
-    if attendee_email:
-        event["attendees"] = [{"email": attendee_email}]
     created = _get_service().events().insert(
         calendarId=cal_id, body=event
     ).execute()
