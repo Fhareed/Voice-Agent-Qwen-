@@ -12,17 +12,31 @@
 
 ## 2. Tech stack & architecture
 - **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind. Dev at localhost:3000.
-- **Backend:** FastAPI (Python 3.10), Supabase Postgres. Runs at localhost:8000 (uvicorn from the `.venv`, not conda base).
+- **Backend:** FastAPI (Python 3.10), Supabase Postgres. **Now deployed to the cloud (see §2a)** at `https://lumidesk-farid.duckdns.org` — no longer localhost + ngrok. Still runs locally for dev (uvicorn from the `.venv`, not conda base).
 - **Voice:** **Retell AI** orchestrates the calls. STT = Soniox. TTS = ElevenLabs / Cartesia (English demo voice = `cartesia-Grace`). Agents + prompts configured in the Retell dashboard.
-- **Booking tools** (FastAPI endpoints Retell calls mid-call): `/tools/check_availability`, `/tools/book_appointment`, `/tools/send_sms` — Google Calendar + Twilio SMS. Auth via a shared-secret header.
+- **Agent tools** (FastAPI endpoints Retell calls mid-call): `/tools/check_availability`, `/tools/book_appointment`, `/tools/send_sms`, `/tools/search_knowledge` (per-org knowledge-base lookup). Google Calendar (per-org, via a **service account** the business shares their calendar with) + Twilio SMS. Auth via the `X-LumiDesk-Secret` shared-secret header. The caller's phone number is captured automatically from caller ID (Retell `{{user_number}}` → `X-Caller-Number` header), so the agent never asks for it.
 - **Post-call webhook** logs finished calls to the `call_logs` table → shows on the dashboard.
 - **Billing:** Stripe subscription, **pay-upfront**, then auto-provision the Retell agent on successful payment.
-- **Repo:** github.com/Fhareed/Voice-Agent-Qwen- (branch `main`). Local path on my Mac: `~/Voice_Agent`. Main dashboard org is "Deep03".
+- **Repo:** github.com/Fhareed/Voice-Agent-Qwen- (branch `main`, currently public). Local path on my Mac: `~/Voice_Agent`. Main dashboard org is "Deep03".
+
+## 2a. Hosting / deployment — the backend now runs in the cloud (NEW, big change)
+The backend no longer depends on my laptop or ngrok. It runs 24/7 on a **free Oracle Cloud** ARM VM:
+- **Server:** Oracle Cloud "Always Free" `VM.Standard.A1.Flex` (ARM, Ubuntu 22.04, 1 OCPU / 6 GB), region **Frankfurt (eu-frankfurt-1)**. Public IP `89.168.105.83`, SSH user `ubuntu` (private key is on my Mac in `~/Downloads`).
+- **Permanent address:** `https://lumidesk-farid.duckdns.org` (free DuckDNS subdomain pointed at the VM's IP). This replaces the old changing ngrok URL everywhere, for good.
+- **How it runs:** repo cloned at `/home/ubuntu/Voice-Agent-Qwen-` with its own `.venv`. A **systemd** service named `lumidesk` runs `uvicorn app:app` on `127.0.0.1:8000` and auto-restarts on crash/boot. **Caddy** is the reverse proxy in front, giving automatic Let's Encrypt **HTTPS** on the DuckDNS domain. Ports 80/443 are open in BOTH the Oracle security list AND the VM's iptables (both layers are required — classic Oracle gotcha).
+- **Env on the server:** `.env` + the Google `service-account.json` were copied over (`chmod 600`). On the server, `PUBLIC_BASE_URL=https://lumidesk-farid.duckdns.org`, `GOOGLE_SERVICE_ACCOUNT_FILE` and `TENANT_INDEX_DIR` point to `/home/ubuntu/Voice-Agent-Qwen-/...`. The knowledge-base index dir (`tenant_indexes`) is **fresh/empty on the server** — KB content must be re-added via the Knowledge page.
+- **Retell** is pointed at this domain: tool URLs `https://lumidesk-farid.duckdns.org/tools/*` and webhook `https://lumidesk-farid.duckdns.org/retell/webhook/<secret>`. **Verified end-to-end:** a live call checks availability, books, writes the event to Google Calendar, and logs to the dashboard — entirely server-side, laptop closed.
+- **Redeploy after a code change:** push to GitHub, then on the server run `cd ~/Voice-Agent-Qwen- && git pull && sudo systemctl restart lumidesk`. Watch logs with `sudo journalctl -u lumidesk -f`.
+- **Still local for now:** the **frontend** (Next.js dashboard). Next step is deploying it to **Vercel** with `BACKEND_URL=https://lumidesk-farid.duckdns.org`.
 
 ## 3. What's built (recent work)
 - Full **self-serve flow**: signup → onboarding wizard → Stripe pay-upfront → auto-provision agent → live dashboard. Proven end-to-end.
 - Dashboard with **Calls** and **Bookings** views.
-- **Call-detail view** (newest): click a call card to open a modal with the full transcript as chat bubbles, plus **Resolve / Unresolve / Delete**. Committed + pushed.
+- **Call-detail view**: click a call card to open a modal with the full transcript as chat bubbles, plus **Resolve / Unresolve / Delete**.
+- **Google Calendar sync** (per-org, service-account): the agent checks real free/busy and writes bookings to the business's own Google Calendar. Hardened so a calendar hiccup never breaks a call or loses a booking, and fixed for Python-3.10 (`Z` timestamps) and for service-account attendee limits (caller email goes in the event description, not as a guest).
+- **Knowledge Base** page + `search_knowledge` tool (RAG, Option B): per-org FAISS index the agent can query mid-call to answer business questions.
+- **Caller-ID booking:** the agent uses the caller's phone number automatically (from caller ID) instead of asking — saves time and tokens.
+- **Deployed to the cloud (see §2a):** off localhost + ngrok; the backend is now always-on at `lumidesk-farid.duckdns.org`.
 - **CI** (GitHub Actions): on every push to `main` it runs `ruff` lint + a compile check + an import smoke test on the backend. (Note: CI does NOT yet check the frontend — a `next build`/`tsc` step could be added.)
 
 ## 4. CURRENT FOCUS — the Riyadh deal
@@ -34,7 +48,7 @@
 
 ## 5. The Arabic agent plan
 - **Voice:** No off-the-shelf Najdi TTS works inside Retell (Retell only supports 6 TTS engines; their Arabic is Modern Standard / generic). Plan: use a **free ElevenLabs voice-library Saudi male voice** — auditioning ~3 and letting the prospect's native ear pick the most "Riyadh." (Ruled out any "Jeddawi/Hijazi" = western and "Hasawi" = eastern voices.) Fallback: clone a **consented** Najdi male voice actor (~$100–450, Fiverr/Voice123) — never scrape a random voice (ToS + impersonation).
-- **Known bug being fixed:** on the English demo, the agent repeated its greeting and re-asked for info the caller had already given. Fix = a tightened prompt (greet once, acknowledge given info, never re-ask, never restart) + Retell turn-taking/interruption settings. **The fixed prompt is in section 7 below.**
+- **Known prompt-behaviour bugs being fixed:** (1) the agent repeated its greeting and re-asked for info already given; (2) it **booked appointments before the caller confirmed** and talked over the caller (felt scripted/script-reading). Fix = a tightened prompt: greet once, never re-ask, a **hard confirmation gate (never call book_appointment until the caller says yes to a specific time)**, answer the caller's questions first, and "one thing at a time" pacing — plus Retell turn-taking/interruption-sensitivity settings. This is now baked into `retell_provision.py`'s `build_prompt` (so new agents get it), and the live demo agent prompts were updated to match. **The Arabic version is in section 7 below.**
 - **Saudi phone number:** a real local +966 number isn't feasible fast (CITC regulation needs a Saudi entity/address). For the demo: outbound call to his mobile, or a web call. Long-term: Unifonic (Saudi CPaaS) issues compliant +966 numbers that connect to Retell over SIP, or the customer provides their own number.
 - **Test script:** I have 3 realistic Arabic caller role-play scenarios (Khalid the impatient businessman / Noura the worried tenant / Abu Sultan the older caller who switches to English) for a native tester to validate the agent before the demo.
 
@@ -91,6 +105,11 @@ When they're done: "شكراً لتواصلك مع مكتب قرة العين، 
 - **Co-founder email** to zakikhan@outlook.com (a Reddit contact with startup-scaling experience) — drafted.
 - Possibly get a **local Saudi number** (Unifonic) once there's a paying customer.
 - Consider adding a frontend typecheck to CI.
+- **Deploy the frontend to Vercel** (pointed at `BACKEND_URL=https://lumidesk-farid.duckdns.org`) so the dashboard is online too, not tied to my Mac.
+- **Re-add knowledge-base content** on the new server (the `tenant_indexes` dir is empty there) via the Knowledge page.
+- **Fix `search_knowledge` in the live Retell agent:** give it `org_id` + `query` parameters and turn ON "Payload: args only" (it was returning 422 because the body shape didn't match).
+- **Rotate secrets that were shown in screenshots** during setup (Retell webhook secret + API key, Stripe test key, Google service-account key) and update `.env` on both my Mac and the server.
+- **Consider making the GitHub repo private** (it's currently public — no secrets are committed, but the full source is visible).
 
 ## 9. Artifacts already produced in the prior chat (I have these files)
 - A Riyadh **sales-call cheat sheet** (pricing anchor, demo flow, objection handling).
