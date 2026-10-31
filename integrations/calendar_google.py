@@ -135,6 +135,21 @@ def _candidate_slots(from_dt, to_dt, tz, slot_min, day_start, day_end):
     return slots
 
 
+def _spread_across_days(slots, max_slots):
+    """Pick free times across DIFFERENT days (the earliest open slot on each day),
+    so the agent can offer a choice of days instead of four times on one morning."""
+    out, seen = [], set()
+    for s in slots:
+        d = s.date()
+        if d in seen:
+            continue
+        seen.add(d)
+        out.append(s)
+        if len(out) >= max_slots:
+            break
+    return out
+
+
 def suggest_slots(org_id=None, from_dt=None, days=5, max_slots=4):
     """Return up to max_slots free appointment start times (timezone-aware).
 
@@ -153,7 +168,7 @@ def suggest_slots(org_id=None, from_dt=None, days=5, max_slots=4):
 
     cal_id = _calendar_id_for(org_id)
     if not (has_service_account() and cal_id):
-        return candidates[:max_slots]
+        return _spread_across_days(candidates, max_slots)
 
     # Remove times that overlap a busy period on the real calendar. If anything in
     # this path fails (calendar not shared yet, Google API error, odd timestamp),
@@ -173,16 +188,14 @@ def suggest_slots(org_id=None, from_dt=None, days=5, max_slots=4):
         ]
     except Exception as e:
         print(f"[calendar] free/busy lookup failed, offering standard slots instead: {e}")
-        return candidates[:max_slots]
+        return _spread_across_days(candidates, max_slots)
 
     free = []
     for s in candidates:
         e = s + timedelta(minutes=slot_min)
         if not any(s < b_end and e > b_start for b_start, b_end in busy_ranges):
             free.append(s)
-        if len(free) >= max_slots:
-            break
-    return free
+    return _spread_across_days(free, max_slots)
 
 
 def create_event(summary, start_dt, description="", attendee_email=None, org_id=None):
