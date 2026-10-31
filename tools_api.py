@@ -123,11 +123,12 @@ class SmsIn(BaseModel):
 # ── endpoints ─────────────────────────────────────────────────────────
 @router.post("/check_availability")
 def check_availability(body: CheckAvailabilityIn, _: None = Depends(verify_secret)):
-    slots = calendar_google.suggest_slots(days=body.days)
+    org = _resolve_org(body.org_id)
+    slots = calendar_google.suggest_slots(org_id=org, days=body.days)
     return {
         "org_id": body.org_id,
         "slots": [{"iso": s.isoformat(), "spoken": _speak(s)} for s in slots],
-        "calendar_connected": calendar_google.is_configured(),
+        "calendar_connected": calendar_google.is_configured(org),
     }
 
 
@@ -136,15 +137,23 @@ def book_appointment(body: BookIn, _: None = Depends(verify_secret)):
     start_dt = _parse_start(body.start)
     service = body.service or "appointment"
 
-    # 1) real calendar event (skipped gracefully if Calendar isn't wired yet)
+    # 1) real calendar event on the business's own calendar (skipped if not connected)
+    org = _resolve_org(body.org_id)
     event_id = None
-    if calendar_google.is_configured():
-        event_id = calendar_google.create_event(
-            summary=f"{service} — {body.customer_name or body.customer_phone}",
-            start_dt=start_dt,
-            description=f"Booked by LumiDesk.\nPhone: {body.customer_phone}\nNotes: {body.notes}",
-            attendee_email=body.customer_email,
-        )
+    if calendar_google.is_configured(org):
+        try:
+            event_id = calendar_google.create_event(
+                summary=f"{service} — {body.customer_name or body.customer_phone}",
+                start_dt=start_dt,
+                description=f"Booked by LumiDesk.\nPhone: {body.customer_phone}\nNotes: {body.notes}",
+                attendee_email=body.customer_email,
+                org_id=org,
+            )
+        except Exception as e:
+            # A calendar hiccup must never lose the booking — save it anyway and
+            # the dashboard still shows it; the event just isn't mirrored to Google.
+            print(f"[calendar] create_event failed, saving booking without it: {e}")
+            event_id = None
 
     # 2) source-of-truth row for the dashboard
     booking_id = _save_booking(

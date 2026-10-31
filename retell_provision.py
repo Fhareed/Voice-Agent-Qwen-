@@ -119,7 +119,8 @@ OPENING
 Open warm and short, e.g. "{name}, this is {agent} — how can I help?" (vary it slightly each call). If the caller opens with small talk, answer it warmly first before moving to business.
 
 MEMORY (never ask twice)
-- You already have whatever the caller gave you — name, number, the problem, the time. Never ask for any of it again.
+- You already have whatever the caller gave you — name, the problem, the time. Never ask for any of it again.
+- The caller's phone number is captured automatically from their caller ID — NEVER ask for a phone number.
 - If you genuinely missed one thing, ask only for that one thing, casually.
 
 BUSINESS INFO (only use what's here — never invent anything)
@@ -131,27 +132,30 @@ BUSINESS INFO (only use what's here — never invent anything)
 HANDLING THE CALL
 - Greet, then just answer what they ask — don't interrogate.
 - Emergencies: stay calm, reassure them, treat it as urgent, offer the soonest time.
-- To book: get their name, number, and a rough when — conversationally. Call check_availability, offer one or two real times, then call book_appointment with the exact iso start. Confirm warmly in one sentence.
+- To book: get their name and a rough when, plus a word or two on what they need (e.g. "sink leaking") — conversationally; you don't need their phone number, it's captured automatically. Call check_availability, offer one or two real times, then call book_appointment with the exact iso start and a short notes line describing what they need. Confirm warmly in one sentence.
 - If the caller asks something you're not sure of, call search_knowledge with their question and answer naturally from what it returns. If it finds nothing useful, say you'll have someone confirm and offer to take a message — never invent an answer.
 
 IF A TOOL IS SLOW OR FAILS
-- Never go silent and never invent a time. Cover it naturally ("one sec, still checking…") and try once more. If it still won't load, take their name and number and say someone will confirm shortly.
+- Never go silent and never invent a time. Cover it naturally ("one sec, still checking…") and try once more. If it still won't load, take their name and say someone will confirm shortly (their number is already captured).
 
 TOOLS
 - check_availability(org_id, service) — always call before offering a time.
-- book_appointment(org_id, start, customer_name, customer_phone, service) — book a chosen time.
+- book_appointment(org_id, start, customer_name, service, notes) — book a chosen time. The caller's phone number is added automatically; pass a short notes phrase of what they need.
 - search_knowledge(org_id, query) — look up anything about the business you're unsure of (services, prices, policies, details). Pass the caller's question as the query, then answer from what it returns.
 - On EVERY tool call, pass org_id = "{org_id}". Keep speaking {lang} after any tool call."""
 
 
-def _tool(name, description, props, required, base, secret, speak_msg):
+def _tool(name, description, props, required, base, secret, speak_msg, extra_headers=None):
+    headers = {"X-LumiDesk-Secret": secret, "ngrok-skip-browser-warning": "true"}
+    if extra_headers:
+        headers.update(extra_headers)
     return {
         "type": "custom",
         "name": name,
         "description": description,
         "url": f"{base}/tools/{name}",
         "method": "POST",
-        "headers": {"X-LumiDesk-Secret": secret, "ngrok-skip-browser-warning": "true"},
+        "headers": headers,
         "args_at_root": True,  # backend expects the args as the root JSON body
         "speak_during_execution": True,
         "speak_after_execution": True,
@@ -180,11 +184,12 @@ def _tools(base: str, secret: str) -> list:
                 "org_id": org,
                 "start": {"type": "string", "description": "ISO 8601 start time, from check_availability"},
                 "customer_name": {"type": "string", "description": "The caller's name"},
-                "customer_phone": {"type": "string", "description": "The caller's phone number"},
                 "service": service,
+                "notes": {"type": "string", "description": "One short phrase of what the caller needs / the problem, e.g. 'kitchen sink leaking under the cabinet'"},
             },
             ["org_id", "start"],
             base, secret, "One moment, booking that in…",
+            extra_headers={"X-Caller-Number": "{{user_number}}"},
         ),
         _tool(
             "search_knowledge",

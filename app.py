@@ -274,6 +274,45 @@ def clear_kb(ctx: dict = Depends(require_org_member)):
     return {"ok": True, "removed": bool(removed)}
 
 
+# ── Calendar connect (owner-facing, per org) ──────────────────────
+class CalendarConnectIn(BaseModel):
+    calendar_id: str = ""
+
+
+@app.get("/calendar")
+def get_calendar_status(ctx: dict = Depends(require_org_member)):
+    """Whether this org has connected a Google Calendar, and the address to share with."""
+    from integrations import calendar_google
+    org_id = ctx["org_id"]
+    settings = settings_store.get_settings(org_id) or {}
+    return {
+        "connected": calendar_google.is_configured(org_id),
+        "calendar_id": settings.get("google_calendar_id") or "",
+        "service_account_email": calendar_google.service_account_email() or "",
+        "service_account_ready": calendar_google.has_service_account(),
+    }
+
+
+@app.post("/calendar")
+def connect_calendar(body: CalendarConnectIn, ctx: dict = Depends(require_org_member)):
+    """Save this org's Google Calendar ID and test that we can reach it."""
+    from integrations import calendar_google
+    org_id = ctx["org_id"]
+    cal_id = (body.calendar_id or "").strip()
+    if not cal_id:
+        return JSONResponse({"error": "Enter your Calendar ID (usually your Gmail address)."}, status_code=400)
+    settings_store.save_settings(org_id, {"google_calendar_id": cal_id})
+    ok, message = calendar_google.test_access(org_id)
+    return {"ok": True, "connected": calendar_google.is_configured(org_id), "tested_ok": ok, "message": message}
+
+
+@app.delete("/calendar")
+def disconnect_calendar(ctx: dict = Depends(require_org_member)):
+    """Disconnect this org's Google Calendar (bookings fall back to no calendar)."""
+    settings_store.save_settings(ctx["org_id"], {"google_calendar_id": ""})
+    return {"ok": True, "connected": False}
+
+
 @app.get("/", response_class=HTMLResponse)
 def serve_frontend():
     with open("web/frontend.html", "r", encoding="utf-8") as f:

@@ -33,8 +33,74 @@ def default_tz() -> ZoneInfo:
     return ZoneInfo(os.getenv("DEFAULT_TZ", "Europe/Helsinki"))
 
 
-def is_configured() -> bool:
-    return bool(os.getenv("GOOGLE_CALENDAR_ID") and os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE"))
+def _parse_google_dt(s: str) -> datetime:
+    """Parse a Google RFC3339 timestamp into a timezone-aware datetime.
+
+    Google returns UTC times ending in 'Z' (e.g. '2026-10-31T10:00:00Z').
+    Python 3.10's datetime.fromisoformat() can't read that trailing 'Z', so we
+    normalise it to '+00:00' first. (3.11+ handles 'Z' natively; this keeps us
+    working on 3.10 too.)
+    """
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    return datetime.fromisoformat(s)
+
+
+def has_service_account() -> bool:
+    """True if the Google service-account key file is configured on the server."""
+    path = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+    return bool(path and os.path.isfile(path))
+
+
+def service_account_email() -> str | None:
+    """The service account's email — the address a business shares their calendar with."""
+    path = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        import json
+        with open(path, "r", encoding="utf-8") as f:
+            return (json.load(f) or {}).get("client_email")
+    except Exception:
+        return None
+
+
+def _calendar_id_for(org_id=None):
+    """The calendar id to use: this org's own connected calendar, else the env default."""
+    if org_id:
+        try:
+            import settings_store
+            cid = (settings_store.get_settings(org_id) or {}).get("google_calendar_id")
+            if isinstance(cid, str) and cid.strip():
+                return cid.strip()
+        except Exception:
+            pass
+    env = os.getenv("GOOGLE_CALENDAR_ID")
+    return env.strip() if env and env.strip() else None
+
+
+def is_configured(org_id=None) -> bool:
+    """True if we can read/write a real calendar for this org (service account + a calendar id)."""
+    return has_service_account() and bool(_calendar_id_for(org_id))
+
+
+def test_access(org_id=None):
+    """Check the app can actually see the org's calendar. Returns (ok: bool, message: str)."""
+    if not has_service_account():
+        return (False, "Calendar sync isn't set up on the server yet.")
+    cal_id = _calendar_id_for(org_id)
+    if not cal_id:
+        return (False, "No calendar connected yet.")
+    try:
+        _get_service().calendars().get(calendarId=cal_id).execute()
+        return (True, "Connected — your calendar is reachable.")
+    except Exception as e:
+        msg = str(e).lower()
+        if "404" in msg or "notfound" in msg:
+            return (False, "Can't find that calendar — double-check the Calendar ID.")
+        if "403" in msg or "forbidden" in msg:
+            return (False, "Found it, but it isn't shared with the service account yet.")
+        return (False, "Couldn't reach that calendar — check the ID and that it's shared.")
 
 
 def _get_service():
@@ -69,7 +135,7 @@ def _candidate_slots(from_dt, to_dt, tz, slot_min, day_start, day_end):
     return slots
 
 
-def suggest_slots(from_dt=None, days=5, max_slots=4):
+def suggest_slots(org_id=None, from_dt=None, days=5, max_slots=4):
     """Return up to max_slots free appointment start times (timezone-aware).
 
     If Google Calendar is configured, real busy periods are removed. If not, the
@@ -85,21 +151,29 @@ def suggest_slots(from_dt=None, days=5, max_slots=4):
 
     candidates = _candidate_slots(from_dt, to_dt, tz, slot_min, day_start, day_end)
 
-    if not is_configured():
+    cal_id = _calendar_id_for(org_id)
+    if not (has_service_account() and cal_id):
         return candidates[:max_slots]
 
-    # Remove times that overlap a busy period on the real calendar.
-    svc = _get_service()
-    body = {
-        "timeMin": from_dt.isoformat(),
-        "timeMax": to_dt.isoformat(),
-        "items": [{"id": os.environ["GOOGLE_CALENDAR_ID"]}],
-    }
-    busy = svc.freebusy().query(body=body).execute()
-    periods = busy["calendars"][os.environ["GOOGLE_CALENDAR_ID"]].get("busy", [])
-    busy_ranges = [
-        (datetime.fromisoformat(p["start"]), datetime.fromisoformat(p["end"])) for p in periods
-    ]
+    # Remove times that overlap a busy period on the real calendar. If anything in
+    # this path fails (calendar not shared yet, Google API error, odd timestamp),
+    # we must NOT break the call — fall back to offering the standard business-hour
+    # slots so the receptionist can still book.
+    try:
+        svc = _get_service()
+        body = {
+            "timeMin": from_dt.isoformat(),
+            "timeMax": to_dt.isoformat(),
+            "items": [{"id": cal_id}],
+        }
+        busy = svc.freebusy().query(body=body).execute()
+        periods = busy.get("calendars", {}).get(cal_id, {}).get("busy", [])
+        busy_ranges = [
+            (_parse_google_dt(p["start"]), _parse_google_dt(p["end"])) for p in periods
+        ]
+    except Exception as e:
+        print(f"[calendar] free/busy lookup failed, offering standard slots instead: {e}")
+        return candidates[:max_slots]
 
     free = []
     for s in candidates:
@@ -111,10 +185,11 @@ def suggest_slots(from_dt=None, days=5, max_slots=4):
     return free
 
 
-def create_event(summary, start_dt, description="", attendee_email=None):
-    """Create a calendar event and return its id. Raises if not configured."""
-    if not is_configured():
-        raise RuntimeError("Google Calendar is not configured (set GOOGLE_CALENDAR_ID and GOOGLE_SERVICE_ACCOUNT_FILE).")
+def create_event(summary, start_dt, description="", attendee_email=None, org_id=None):
+    """Create a calendar event on this org's calendar and return its id. Raises if not connected."""
+    cal_id = _calendar_id_for(org_id)
+    if not (has_service_account() and cal_id):
+        raise RuntimeError("Google Calendar is not connected for this business yet.")
     slot_min = int(os.getenv("BOOKING_SLOT_MINUTES", "60"))
     end_dt = start_dt + timedelta(minutes=slot_min)
     event = {
@@ -126,6 +201,6 @@ def create_event(summary, start_dt, description="", attendee_email=None):
     if attendee_email:
         event["attendees"] = [{"email": attendee_email}]
     created = _get_service().events().insert(
-        calendarId=os.environ["GOOGLE_CALENDAR_ID"], body=event
+        calendarId=cal_id, body=event
     ).execute()
     return created.get("id")

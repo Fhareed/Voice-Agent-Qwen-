@@ -481,3 +481,18 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .content .kbclear-confirm .yes{font-size:12.5px;font-weight:700;color:#fff;background:#D92D20;border:none;border-radius:8px;padding:6px 11px;cursor:pointer;font-family:var(--font)}
 .content .kbclear-confirm .yes:disabled{opacity:.6;cursor:default}
 .content .kbclear-confirm .no{font-size:12.5px;font-weight:700;color:var(--ink-500);background:var(--card);border:1px solid var(--hair);border-radius:8px;padding:6px 11px;cursor:pointer;font-family:var(--font)}
+
+/* ── Calendar sync page ── */
+.content .calstep{display:flex;gap:12px;padding:15px 0;border-top:1px solid var(--line)}
+.content .calstep:first-of-type{border-top:0;padding-top:4px}
+.content .calnum{flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center}
+.content .calstep b{font-size:14px;font-weight:700;color:var(--ink-900);letter-spacing:-.01em}
+.content .calemail{display:flex;align-items:center;gap:10px;background:#F5F6FA;border:1px solid var(--hair);border-radius:11px;padding:9px 12px;margin-top:8px}
+.content .calemail span{font-size:13px;font-weight:600;color:var(--ink-700);word-break:break-all;flex:1}
+.content .calcopy{font-size:12px;font-weight:700;color:var(--accent);background:#EEF3FF;border:1px solid #D9E4FF;border-radius:8px;padding:6px 12px;cursor:pointer;flex:0 0 auto;font-family:var(--font)}
+.content .calcopy:hover{background:#E2ECFF}
+.content .calconsent{display:flex;align-items:flex-start;gap:9px;margin:12px 0;font-size:12.5px;color:var(--ink-500);line-height:1.45;cursor:pointer}
+.content .calconsent input{margin-top:2px;flex:0 0 auto}
+.content .calrow{display:flex;gap:10px;padding:8px 0;font-size:13px}
+.content .calrow-l{color:var(--ink-400);font-weight:600;flex:0 0 90px}
+.content .calrow-v{color:var(--ink-700);font-weight:600;word-break:break-all}

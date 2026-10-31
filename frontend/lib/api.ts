@@ -84,6 +84,24 @@ export async function fetchKb(session: Session): Promise<KbStatus> {
   return { has_kb: !!data.has_kb, sources: data.sources ?? [] };
 }
 
+// ── Calendar sync (per org) ────────────────────────────────────────
+export interface CalendarStatus {
+  connected: boolean;
+  calendar_id: string;
+  service_account_email: string;
+  service_account_ready: boolean;
+}
+
+export async function fetchCalendar(session: Session): Promise<CalendarStatus> {
+  const d = await backendGet<CalendarStatus>("/calendar", session);
+  return {
+    connected: !!d.connected,
+    calendar_id: d.calendar_id ?? "",
+    service_account_email: d.service_account_email ?? "",
+    service_account_ready: !!d.service_account_ready,
+  };
+}
+
 // ── Admin (founder-only) ──────────────────────────────────────────
 export interface AdminOrg {
   org_id: string;

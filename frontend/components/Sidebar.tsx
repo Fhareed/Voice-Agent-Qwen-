@@ -15,7 +15,7 @@ export default function Sidebar({
   active,
   orgName,
 }: {
-  active: "calls" | "bookings" | "knowledge" | "settings";
+  active: "calls" | "bookings" | "knowledge" | "calendar" | "settings";
   orgName?: string | null;
 }) {
   const router = useRouter();
@@ -47,6 +47,13 @@ export default function Sidebar({
         title="Knowledge"
       >
         <Icon name="i-book" />
+      </Link>
+      <Link
+        href="/app/calendar"
+        className={`sideicon${active === "calendar" ? " on" : ""}`}
+        title="Calendar sync"
+      >
+        <Icon name="i-calendar-check" />
       </Link>
       <div className="sideicon" title="Customers (coming soon)">
         <Icon name="i-users" />
