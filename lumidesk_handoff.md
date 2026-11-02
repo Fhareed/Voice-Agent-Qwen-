@@ -99,6 +99,17 @@ Warm, respectful, efficient, human. Mirror the caller's pace. Don't over-explain
 When they're done: "شكراً لتواصلك مع مكتب قرة العين، في أمان الله." Never repeat the greeting.
 ```
 
+## 7a. Outbound calling (NEW feature + a second live lead — Tarek / Morocco)
+A Reddit prospect, **Infamous_Delivery476 ("Tarek", based in Morocco)**, saw the inbound demo and asked for an **outbound** calling agent: it calls a list of people, runs a script, and asks them questions. He's fine with multiple numbers (e.g. 5) for parallel calling, roughly once or twice a month per campaign. He's sending the full requirements (goal, who he's calling, the script) **by email**; I sent him the DeepO3 site + my email. **Status: waiting on his email — do NOT quote a firm price until the volume is known.**
+
+**Feasibility — very doable; it reuses ~90% of what's already built.** Retell does outbound natively (its create-phone-call API dials out using the same agent/prompt system). The backend, Oracle hosting, webhook logging and dashboard all work for outbound unchanged. The only NEW pieces are small: (1) trigger calls from a list/batch (a short loop over Retell's outbound API), (2) an outbound-flavoured script (agent opens, says why it's calling, asks the questions), (3) capture the answers (Retell post-call analysis extracts structured data per call). Outbound is a smaller lift than the inbound receptionist that's already live.
+
+**Cost model (I had this wrong on the call):** cost is driven by total call-**minutes** (~$0.10–0.15/min all-in: LLM + voice + telephony + engine), NOT by the number of agents. Phone numbers are cheap (~$1–2/mo each); more numbers = parallelism/speed, not proportionally more cost. So price on expected total minutes, not "per agent." Example: 200 calls × 2 min ≈ $50–70 usage + ~$10 for five numbers ≈ ~$80/mo cost.
+
+**Pricing approach:** a one-time **setup fee** (build + script + numbers — my "25% upfront" deposit belongs here) + a **monthly** fee (base + usage tiers), anchored on value (far cheaper than paying humans to dial), not just cost. On the call I improvised ~$150–200/mo + 25% upfront — not binding, and possibly too low depending on volume; re-quote properly once he sends numbers.
+
+**Open questions his email must answer:** the goal (lead-qualify / delivery-confirm / survey / follow-up), the **volume** (calls per campaign × length × frequency — this sets the price), **who** he's calling (his own existing customers = clean; cold strangers = outbound-calling regulations apply: consent, calling hours, AI disclosure — varies by country), and the **language** (Morocco may need Darija or French).
+
 ## 8. Open threads / to-dos
 - **Riyadh (top priority):** pick the voice (prospect validates) → paste the prompt → set the agent's voice → run the Arabic test scenarios with a native speaker → fix any awkward wording → demo to him + his law-firm friend next week.
 - **Waitlist emails** (early-access, "20% off for life") — drafted; I send them from Outlook.
@@ -110,6 +121,7 @@ When they're done: "شكراً لتواصلك مع مكتب قرة العين، 
 - **Fix `search_knowledge` in the live Retell agent:** give it `org_id` + `query` parameters and turn ON "Payload: args only" (it was returning 422 because the body shape didn't match).
 - **Rotate secrets that were shown in screenshots** during setup (Retell webhook secret + API key, Stripe test key, Google service-account key) and update `.env` on both my Mac and the server.
 - **Consider making the GitHub repo private** (it's currently public — no secrets are committed, but the full source is visible).
+- **Build outbound calling** (a second product mode — driven by the Tarek/Morocco lead, see §7a): a new **"Outbound campaigns" page** — upload/enter a list of numbers, choose the outbound agent + script, launch the campaign, and view each call's outcome + captured answers; plus a backend endpoint that triggers Retell outbound calls across the list and stores the post-call structured data.
 
 ## 9. Artifacts already produced in the prior chat (I have these files)
 - A Riyadh **sales-call cheat sheet** (pricing anchor, demo flow, objection handling).
