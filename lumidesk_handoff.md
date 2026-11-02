@@ -28,6 +28,7 @@ The backend no longer depends on my laptop or ngrok. It runs 24/7 on a **free Or
 - **Retell** is pointed at this domain: tool URLs `https://lumidesk-farid.duckdns.org/tools/*` and webhook `https://lumidesk-farid.duckdns.org/retell/webhook/<secret>`. **Verified end-to-end:** a live call checks availability, books, writes the event to Google Calendar, and logs to the dashboard — entirely server-side, laptop closed.
 - **Redeploy after a code change:** push to GitHub, then on the server run `cd ~/Voice-Agent-Qwen- && git pull && sudo systemctl restart lumidesk`. Watch logs with `sudo journalctl -u lumidesk -f`.
 - **Still local for now:** the **frontend** (Next.js dashboard). Next step is deploying it to **Vercel** with `BACKEND_URL=https://lumidesk-farid.duckdns.org`.
+- **Running costs:** hosting is now **$0** (Oracle). Separately, Retell bills a small monthly **phone-number rental** (~$1–2/number) to my card; call usage is covered by Retell **signup credits** for now, then per-minute (~$0.10–0.15/min) once they run out. Hosting is the only thing we moved off-laptop — the telephony cost is separate and normal.
 
 ## 3. What's built (recent work)
 - Full **self-serve flow**: signup → onboarding wizard → Stripe pay-upfront → auto-provision agent → live dashboard. Proven end-to-end.
@@ -35,7 +36,9 @@ The backend no longer depends on my laptop or ngrok. It runs 24/7 on a **free Or
 - **Call-detail view**: click a call card to open a modal with the full transcript as chat bubbles, plus **Resolve / Unresolve / Delete**.
 - **Google Calendar sync** (per-org, service-account): the agent checks real free/busy and writes bookings to the business's own Google Calendar. Hardened so a calendar hiccup never breaks a call or loses a booking, and fixed for Python-3.10 (`Z` timestamps) and for service-account attendee limits (caller email goes in the event description, not as a guest).
 - **Knowledge Base** page + `search_knowledge` tool (RAG, Option B): per-org FAISS index the agent can query mid-call to answer business questions.
-- **Caller-ID booking:** the agent uses the caller's phone number automatically (from caller ID) instead of asking — saves time and tokens.
+- **Caller-ID booking:** the agent uses the caller's phone number automatically (from caller ID) instead of asking — saves time and tokens. The booking event now writes a clear description (service, customer, phone, details).
+- **Smarter availability:** `check_availability` offers the earliest open slot on each *different* day (Tue, Wed, Thu…) instead of several times on the soonest day, so the agent gives a real choice of days.
+- **Confirmation-gate prompt:** the agent waits for a clear "yes" to a specific time before booking, answers the caller's questions first, and paces one thing at a time (baked into `retell_provision.py` and the live demo agent).
 - **Deployed to the cloud (see §2a):** off localhost + ngrok; the backend is now always-on at `lumidesk-farid.duckdns.org`.
 - **CI** (GitHub Actions): on every push to `main` it runs `ruff` lint + a compile check + an import smoke test on the backend. (Note: CI does NOT yet check the frontend — a `next build`/`tsc` step could be added.)
 
@@ -122,6 +125,7 @@ A Reddit prospect, **Infamous_Delivery476 ("Tarek", based in Morocco)**, saw the
 - **Rotate secrets that were shown in screenshots** during setup (Retell webhook secret + API key, Stripe test key, Google service-account key) and update `.env` on both my Mac and the server.
 - **Consider making the GitHub repo private** (it's currently public — no secrets are committed, but the full source is visible).
 - **Build outbound calling** (a second product mode — driven by the Tarek/Morocco lead, see §7a): a new **"Outbound campaigns" page** — upload/enter a list of numbers, choose the outbound agent + script, launch the campaign, and view each call's outcome + captured answers; plus a backend endpoint that triggers Retell outbound calls across the list and stores the post-call structured data.
+- **Turn on SMS confirmations:** the code already texts a booking confirmation to the caller, but Twilio isn't configured on the server (returns `not_configured`), so no texts actually send yet. Add `TWILIO_ACCOUNT_SID / AUTH_TOKEN / SMS_FROM` to the server `.env` to enable. Optional follow-on: also text the **business owner** a "new booking" alert (needs the owner's number saved as a per-org setting + a few lines of code).
 
 ## 9. Artifacts already produced in the prior chat (I have these files)
 - A Riyadh **sales-call cheat sheet** (pricing anchor, demo flow, objection handling).
