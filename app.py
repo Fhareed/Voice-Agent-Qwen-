@@ -20,13 +20,13 @@ from auth import get_current_user, sign_in, sign_up
 from deps import require_org_member
 from lead_extract import extract_lead
 from leads import save_lead
+from outbound_api import router as outbound_router
 from providers import get_llm_provider, get_stt, get_tts, get_vector_store
 from rag_chain import build_qa_chain
 from retell_webhook import router as retell_router
 from scrape import scrape_site
 from tenancy import create_org, list_orgs
 from tools_api import router as tools_router
-from outbound_api import router as outbound_router
 
 # File types a user is allowed to upload into their knowledge base.
 _ALLOWED_UPLOAD_EXTS = {".pdf", ".txt", ".md", ".docx", ".doc"}
