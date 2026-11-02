@@ -7,50 +7,60 @@ import { Reveal, ShineCard } from "./motion";
 
 type Tier = {
   name: string;
-  monthly: number | null;
+  monthly: number;
+  setup?: number | null;
+  priceSuffix?: string;
   who: string;
   features: string[];
   highlight?: boolean;
   cta: string;
+  ctaHref: string;
 };
 
 const TIERS: Tier[] = [
   {
     name: "Starter",
     monthly: 79,
+    setup: 249,
     who: "For the solo operator who can't answer while working.",
     features: [
-      "Up to 100 answered calls a month",
-      "Answers 24/7 in English and your language",
-      "Books into one calendar",
-      "Lead details texted straight to you",
+      "Inbound, answered 24/7",
+      "Up to 100 calls a month",
+      "Answers in English and your language",
+      "Books one calendar, texts you every lead",
     ],
     cta: "Start free",
+    ctaHref: "/signup",
   },
   {
     name: "Pro",
     monthly: 149,
+    setup: 249,
     who: "For busy teams that live and die by the phone.",
     features: [
-      "Unlimited answered calls",
       "Everything in Starter",
-      "Answers hours, pricing & service area",
+      "Unlimited calls (fair use)",
       "Automatic text follow-up to every caller",
+      "Answers hours, pricing & service area",
     ],
     highlight: true,
     cta: "Start free",
+    ctaHref: "/signup",
   },
   {
-    name: "Custom",
-    monthly: null,
-    who: "For multi-location businesses and franchises.",
+    name: "Outbound",
+    monthly: 99,
+    setup: null,
+    priceSuffix: "+ usage",
+    who: "Add-on: let LumiDesk make the calls, too.",
     features: [
-      "Volume pricing",
-      "Multiple numbers and locations",
-      "Custom voice and call scripts",
-      "Dedicated account manager",
+      "Outbound campaigns at scale",
+      "Pay per connected call",
+      "Confirmations & follow-ups",
+      "Scripted lead qualification",
     ],
     cta: "Talk to us",
+    ctaHref: "#contact",
   },
 ];
 
@@ -67,7 +77,7 @@ export default function Pricing() {
             Simple <span className="text-flame">pricing.</span>
           </h2>
           <p className="mt-5 max-w-xl font-sans text-[18px] text-muted">
-            One flat fee. Every call answered. Cancel anytime.
+            One-time setup, then a flat monthly fee. Every call answered. Cancel anytime.
           </p>
         </Reveal>
 
@@ -99,18 +109,17 @@ export default function Pricing() {
               >
                   <div className="font-display text-[20px] font-bold text-ink">{t.name}</div>
                   <div className="mt-3 flex items-end gap-1">
-                    {t.monthly == null ? (
-                      <span className="font-display text-[40px] font-bold leading-none text-ink">Let&apos;s talk</span>
-                    ) : (
-                      <>
-                        <span className="font-display text-[48px] font-bold leading-none text-ink">€{price(t.monthly)}</span>
-                        <span className="pb-1.5 font-sans text-[14px] font-semibold text-ink/70">/mo</span>
-                      </>
-                    )}
+                    <span className="font-display text-[48px] font-bold leading-none text-ink">€{price(t.monthly)}</span>
+                    <span className="pb-1.5 font-sans text-[14px] font-semibold text-ink/70">/mo{t.priceSuffix ? ` ${t.priceSuffix}` : ""}</span>
                   </div>
-                  {yearly && t.monthly != null && (
-                    <div className="mt-1 font-sans text-[12.5px] font-semibold text-ink/60">billed yearly</div>
+                  {t.setup ? (
+                    <div className="mt-1 font-sans text-[13px] font-semibold text-ink/60">+ €{t.setup} one-time setup</div>
+                  ) : (
+                    <div className="mt-1 font-sans text-[13px] font-semibold text-ink/60">Add-on to any plan</div>
                   )}
+                  {yearly && t.setup ? (
+                    <div className="mt-0.5 font-sans text-[12.5px] font-semibold text-ink/50">monthly billed yearly</div>
+                  ) : null}
                   <p className="mt-3 font-sans text-[14px] text-ink/75">{t.who}</p>
                   <div className="my-5 h-0.5 w-full bg-ink/15" />
                   <ul className="flex flex-1 flex-col gap-3">
@@ -123,7 +132,7 @@ export default function Pricing() {
                   </ul>
                   <div className="mt-7">
                     <PillButton
-                      href={t.monthly == null ? "#contact" : "/signup"}
+                      href={t.ctaHref}
                       variant={t.highlight ? "fill" : "outline"}
                       className="w-full"
                     >
@@ -137,7 +146,7 @@ export default function Pricing() {
 
         <Reveal delay={0.1}>
           <div className="mt-8 rounded-[18px] border-2 border-ink bg-sun px-6 py-4 font-display text-[14px] font-bold text-ink">
-            Placeholder pricing, final plans confirmed at launch. Every plan: no contract, cancel anytime, keep every lead you capture.
+            Every plan includes a one-time €249 setup (concierge onboarding). No contract, cancel anytime, keep every lead you capture.
           </div>
         </Reveal>
       </div>

@@ -55,11 +55,38 @@ The backend no longer depends on my laptop or ngrok. It runs 24/7 on a **free Or
 - **Saudi phone number:** a real local +966 number isn't feasible fast (CITC regulation needs a Saudi entity/address). For the demo: outbound call to his mobile, or a web call. Long-term: Unifonic (Saudi CPaaS) issues compliant +966 numbers that connect to Retell over SIP, or the customer provides their own number.
 - **Test script:** I have 3 realistic Arabic caller role-play scenarios (Khalid the impatient businessman / Noura the worried tenant / Abu Sultan the older caller who switches to English) for a native tester to validate the agent before the demo.
 
-## 6. Pricing (researched across markets)
+## 6. Pricing (FINALIZED Nov 2026 — validated against real call costs)
+**Locked structure (EU / homepage — live in `frontend/components/marketing/Pricing.tsx`):**
+- **One-time setup fee: €249** — concierge onboarding (provisioning, business training, number + calendar setup). Raises commitment, filters tire-kickers; waivable for annual prepay.
+- **Starter — €79/mo:** inbound 24/7, up to 100 calls/mo, books one calendar, texts you every lead.
+- **Pro — €149/mo (most popular):** everything in Starter + unlimited calls (fair-use ~500/mo; genuine high-volume → Custom) + automatic text follow-up + answers hours/pricing/service area.
+- **Outbound add-on — €99/mo + ~€0.45 per connected call:** outbound campaigns, confirmations & follow-ups, scripted lead qualification. Usage-priced so margin can't go underwater.
+
+**Unit economics (from 33 real Retell test calls):** blended **$0.166/min** → ~**€0.40 per real 2–3 min booking call**, all-in (voice + LLM + telephony). Fixed ~€5/mo per customer (number €2 + SMS + infra share). Gross margins **~55–70%** at normal volume. Pro breakeven ≈ 360 calls/mo (hence the fair-use line). The LLM tier is the main cost lever.
+
+**By market (research):**
 - **Saudi (the live deal):** quote **SAR 2,500/month**. Anchor FIRST on the cost of a human receptionist (SAR 4,000–7,000/mo for one person; SAR 15,000+ for 24/7 coverage), THEN quote. Settle 1,800–1,900, hard floor ~1,500, add "+15% VAT," waive a ~SAR 2,000 setup fee as the closing lever. Flat monthly (never per-minute). WhatsApp confirmations preferred.
 - **US:** ~$149/mo core ($49 entry / $299 upper).
 - **Europe:** ~€149/mo core (my base is Finland; undercut VoiceFleet's €99 entry).
 - **Early-bird offer for waitlist signups: 20% off for life.**
+
+## 6b. Differentiation — how we stand out (researched Nov 2026)
+**Honest headline:** the moat is NOT the AI voice. Retell/ElevenLabs-class tech is available to everyone — anyone can spin up an agent. Our edge is go-to-market: language + local trust + done-for-you onboarding + inbound *and* outbound + the data/relationship we own per customer.
+
+**1. Local-language, local-market focus — not a checkbox.** The incumbents (Smith.ai, Ruby, Goodcall, My AI Front Desk, Rosie, Abby…) are English-first and US-focused; the "multilingual" platforms (thoughtly, famulor, autocalls, edesy) list Finnish/Arabic as *supported* but don't localize the product, onboarding or go-to-market. We're built to be the *local* answer: native-quality Finnish (Nordics) and Najdi-dialect Arabic (Gulf), tuned for local service businesses. Being the trusted local option beats being the 20th English tool.
+
+**2. Inbound + outbound in one product.** Receptionist tools answer; outbound tools dial — rarely the same product. We do both for the same SMB: catch the demand that comes in, and reach out to create more (confirmations, follow-ups, lead qualification). Roughly doubles value-per-customer vs inbound-only incumbents.
+
+**3. Done-for-you, owned full stack — not a thin wrapper.** We own the multi-tenant backend, dashboard, knowledge base, calendar booking and provisioning, and onboard each business hands-on (the €249 concierge setup). The SMB gets a working front desk without touching config; we own the data, bookings and relationship — stickier and more defensible than reselling someone else's agent.
+
+**4. Vertical workflow depth.** Not just a talking bot: books into their calendar, texts/WhatsApps confirmations, answers from a KB of their services & prices. Built for plumbers, clinics, salons — where the phone *is* the business.
+
+**Honest caveats (for us, not the pitch):**
+- Voice tech is not the moat. Defensibility = language + local trust + onboarding + distribution + proprietary per-vertical call/outcome data + the owned customer relationship.
+- Markets aren't empty: GCC has an early funded local player — **Sawt** (~$1M pre-seed, Riyadh, 2024, Arabic-native voice; aimed more at customer-support/call-centre than SMB local-service). Several horizontal platforms already "support" Finnish. Edge = focus + execution + being local, not "the only one."
+- Defensibility compounds by being first and focused in a niche the big players won't prioritize (local references, integrations, per-vertical data).
+
+**Investor one-liner:** "We're not building a better AI voice — we're the local front desk for service businesses in the markets the English incumbents ignore, doing both inbound *and* outbound, fully done-for-you."
 
 ## 7. The fixed agent prompt (Qurrat Al-Ain — Najdi, repetition-proof)
 Paste this as the agent's system prompt in Retell. Make sure the tool names `check_availability` and `book_appointment` match the agent's tool setup.
@@ -124,7 +151,7 @@ A Reddit prospect, **Infamous_Delivery476 ("Tarek", based in Morocco)**, saw the
 - **Fix `search_knowledge` in the live Retell agent:** give it `org_id` + `query` parameters and turn ON "Payload: args only" (it was returning 422 because the body shape didn't match).
 - **Rotate secrets that were shown in screenshots** during setup (Retell webhook secret + API key, Stripe test key, Google service-account key) and update `.env` on both my Mac and the server.
 - **Consider making the GitHub repo private** (it's currently public — no secrets are committed, but the full source is visible).
-- **Build outbound calling** (a second product mode — driven by the Tarek/Morocco lead, see §7a): a new **"Outbound campaigns" page** — upload/enter a list of numbers, choose the outbound agent + script, launch the campaign, and view each call's outcome + captured answers; plus a backend endpoint that triggers Retell outbound calls across the list and stores the post-call structured data.
+- **Outbound calling — BUILT (Nov 2026).** New Outbound page (`/app/outbound`): create a campaign (name, goal, script, paste a list of numbers), launch it, and watch each call's status + outcome. Backend: `outbound.py` (one reusable outbound Retell agent per org, placed via `/v2/create-phone-call` with the per-call script + name passed as dynamic variables), `outbound_store.py`, `outbound_api.py` (`/outbound/campaigns…`), and `retell_webhook.py` now attaches each finished outbound call to its campaign target via call metadata. New tables in `sql/006_outbound.sql`. **To go live: (1) run `sql/006_outbound.sql` in the Supabase SQL editor; (2) set `RETELL_OUTBOUND_FROM_NUMBER` in the server `.env` to a number registered in Retell (Retell-bought numbers only dial US — import a SIP number for other countries, e.g. Tarek's lists); (3) push on the Mac → `git pull` + `sudo systemctl restart lumidesk` on the server. The outbound agent auto-provisions on the first launch.**
 - **Turn on SMS confirmations:** the code already texts a booking confirmation to the caller, but Twilio isn't configured on the server (returns `not_configured`), so no texts actually send yet. Add `TWILIO_ACCOUNT_SID / AUTH_TOKEN / SMS_FROM` to the server `.env` to enable. Optional follow-on: also text the **business owner** a "new booking" alert (needs the owner's number saved as a per-org setting + a few lines of code).
 
 ## 9. Artifacts already produced in the prior chat (I have these files)

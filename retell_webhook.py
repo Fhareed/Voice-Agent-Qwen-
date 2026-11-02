@@ -4,11 +4,16 @@ This is the bridge between a REAL phone call and the owner's dashboard. When a
 call on Retell ends, Retell POSTs the finished call here. We:
 
   1. Check the secret in the URL path (so only Retell can post).
-  2. Work out WHICH business the call was for, from the dialed number
-     (to_number) via org_phone_numbers, or the RETELL_DEFAULT_ORG_ID fallback.
+  2. Work out WHICH business the call was for:
+       - inbound:  from the dialed number (to_number) via org_phone_numbers.
+       - outbound: from the metadata we attached when we placed the call
+         (org_id / campaign_id / target_id), set in outbound.create_outbound_call.
+     Falls back to RETELL_DEFAULT_ORG_ID.
   3. Turn Retell's transcript into the same "Caller: .. / Assistant: .." text the
      rest of the app already understands, pull out the summary / duration /
      language, and upsert one row into call_logs for that org.
+  4. For outbound calls, also update the campaign target (status + outcome) so the
+     Outbound page shows how each call went.
 
 It stores TEXT ONLY (never audio), exactly like the browser pipeline. Bookings
 are written separately, live during the call, by tools_api.book_appointment.
@@ -16,8 +21,7 @@ are written separately, live during the call, by tools_api.book_appointment.
 Config (.env):
   RETELL_WEBHOOK_SECRET   required. The secret segment in the webhook URL:
                           https://<your-host>/retell/webhook/<RETELL_WEBHOOK_SECRET>
-  RETELL_DEFAULT_ORG_ID   optional. Used when the dialed number isn't mapped yet
-                          (perfect for your first single customer).
+  RETELL_DEFAULT_ORG_ID   optional. Used when the call isn't mapped to an org yet.
   RETELL_API_KEY          optional. If set, we additionally verify Retell's
                           X-Retell-Signature header (defense in depth).
 """
@@ -119,6 +123,20 @@ def _has_booking_for_call(org_id: str, call_id: str) -> bool:
         return False
 
 
+def _outbound_target_status(call: dict, turns: list) -> str:
+    """Map a finished outbound call to a target status for the Outbound page."""
+    disc = (call.get("disconnection_reason") or "").lower()
+    if "voicemail" in disc:
+        return "no_answer"
+    if any(k in disc for k in ("no_answer", "no-answer", "not_connected", "not-connected",
+                               "dial_failed", "dial_busy", "busy", "invalid")):
+        return "no_answer"
+    if "error" in disc or "failed" in disc:
+        return "failed"
+    # Connected and had a conversation.
+    return "completed"
+
+
 # ── security ────────────────────────────────────────────────────────────────
 def _verify_signature(raw_body: bytes, signature: str | None) -> None:
     """Optional defense-in-depth: if RETELL_API_KEY is set and a signature header
@@ -128,12 +146,8 @@ def _verify_signature(raw_body: bytes, signature: str | None) -> None:
     if not api_key or not signature:
         return
     expected = hmac.new(api_key.encode(), raw_body, hashlib.sha256).hexdigest()
-    # Retell sends the hex digest, sometimes prefixed (e.g. "v1="). Compare the tail.
     got = signature.split("=")[-1].strip()
     if not hmac.compare_digest(expected, got):
-        # The URL path secret already authenticates the caller. Retell's own
-        # signature scheme can differ from this HMAC, so don't fail the webhook
-        # on a mismatch — just note it and rely on the (long, secret) URL path.
         print("retell_webhook: x-retell-signature mismatch — relying on URL secret")
 
 
@@ -142,7 +156,6 @@ def _verify_signature(raw_body: bytes, signature: str | None) -> None:
 async def retell_webhook(secret: str, request: Request):
     expected_secret = os.getenv("RETELL_WEBHOOK_SECRET")
     if not expected_secret:
-        # Fail closed: an unconfigured webhook must not accept anything.
         raise HTTPException(status_code=503, detail="Retell webhook not configured (set RETELL_WEBHOOK_SECRET).")
     if not hmac.compare_digest(secret, expected_secret):
         raise HTTPException(status_code=401, detail="Bad webhook secret.")
@@ -157,7 +170,6 @@ async def retell_webhook(secret: str, request: Request):
 
     event = (payload.get("event") or "").lower()
     if event not in _PERSIST_EVENTS:
-        # call_started, transcript_updated, etc. — acknowledge without storing.
         return {"ok": True, "ignored": event or "unknown"}
 
     call = payload.get("call") or {}
@@ -167,15 +179,24 @@ async def retell_webhook(secret: str, request: Request):
 
     to_number = call.get("to_number") or ""
     from_number = call.get("from_number") or ""
+    meta = call.get("metadata") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    direction = (call.get("direction") or meta.get("direction") or "inbound").lower()
+    is_outbound = direction == "outbound" or bool(meta.get("campaign_id"))
 
     # Which business was this call for?
-    org_id = resolve_org_by_number(to_number) or os.getenv("RETELL_DEFAULT_ORG_ID")
+    if is_outbound:
+        org_id = meta.get("org_id") or resolve_org_by_number(from_number) or os.getenv("RETELL_DEFAULT_ORG_ID")
+    else:
+        org_id = resolve_org_by_number(to_number) or os.getenv("RETELL_DEFAULT_ORG_ID")
     if not org_id:
         # Don't 4xx/5xx — Retell would keep retrying. Acknowledge and note it.
         return {"ok": False, "reason": "no_org_for_number", "to_number": to_number}
 
     turns = _normalize_turns(call)
     analysis = call.get("call_analysis") or {}
+    summary = analysis.get("call_summary") or ""
     duration = None
     try:
         if call.get("start_timestamp") and call.get("end_timestamp"):
@@ -183,19 +204,37 @@ async def retell_webhook(secret: str, request: Request):
     except Exception:
         duration = None
 
+    # The "other party": who we called (outbound) vs who called us (inbound).
+    other_phone = to_number if is_outbound else from_number
+
     call_logs.upsert_full_call(
         org_id,
         call_id,
         transcript=_transcript_text(turns),
-        summary=analysis.get("call_summary") or "",
-        caller_phone=from_number,
+        summary=summary,
+        caller_phone=other_phone,
         from_number=from_number,
         to_number=to_number,
-        direction=call.get("direction") or "inbound",
+        direction="outbound" if is_outbound else "inbound",
         duration_sec=duration,
         language=_guess_language(turns),
         started_at=_ms_to_iso(call.get("start_timestamp")),
         ended_at=_ms_to_iso(call.get("end_timestamp")),
         is_booking=_has_booking_for_call(org_id, call_id),
     )
-    return {"ok": True, "org_id": org_id, "call_id": call_id, "event": event}
+
+    # For outbound calls, mirror the outcome onto the campaign target.
+    if is_outbound:
+        try:
+            import outbound_store
+            outbound_store.update_target_from_call(
+                call_id,
+                status=_outbound_target_status(call, turns),
+                outcome=summary,
+                transcript=_transcript_text(turns),
+                duration_sec=duration,
+            )
+        except Exception as e:  # never fail the webhook over the dashboard mirror
+            print(f"retell_webhook: outbound target update failed: {e}")
+
+    return {"ok": True, "org_id": org_id, "call_id": call_id, "event": event, "direction": direction}

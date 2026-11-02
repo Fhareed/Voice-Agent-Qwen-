@@ -26,6 +26,7 @@ from retell_webhook import router as retell_router
 from scrape import scrape_site
 from tenancy import create_org, list_orgs
 from tools_api import router as tools_router
+from outbound_api import router as outbound_router
 
 # File types a user is allowed to upload into their knowledge base.
 _ALLOWED_UPLOAD_EXTS = {".pdf", ".txt", ".md", ".docx", ".doc"}
@@ -58,6 +59,7 @@ app.include_router(tools_router)
 # Retell's post-call webhook -> writes the finished call into Postgres call_logs:
 #   POST /retell/webhook/{secret}
 app.include_router(retell_router)
+app.include_router(outbound_router)
 
 # Wire up the capabilities through the provider layer.
 # To swap any vendor, edit providers/__init__.py -- not this file.

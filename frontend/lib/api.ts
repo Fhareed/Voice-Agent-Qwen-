@@ -127,3 +127,46 @@ export async function fetchAdminOrgs(session: Session): Promise<AdminOrg[]> {
   const data = (await res.json()) as { orgs: AdminOrg[] };
   return data.orgs ?? [];
 }
+
+// ── Outbound campaigns (per org) ───────────────────────────────────
+export interface OutboundCampaignSummary {
+  id: string;
+  name: string;
+  goal: string;
+  status: string;
+  created_at: string | null;
+  total: number;
+  completed: number;
+  failed: number;
+}
+
+export interface OutboundTarget {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  call_id: string | null;
+  outcome: string | null;
+  transcript: string;
+  duration_sec: number | null;
+  created_at: string | null;
+}
+
+export interface OutboundCampaign {
+  id: string;
+  name: string;
+  goal: string;
+  script: string;
+  status: string;
+  from_number: string;
+  created_at: string | null;
+  targets: OutboundTarget[];
+}
+
+export async function fetchCampaigns(session: Session): Promise<OutboundCampaignSummary[]> {
+  const data = await backendGet<{ campaigns: OutboundCampaignSummary[] }>(
+    "/outbound/campaigns",
+    session,
+  );
+  return data.campaigns ?? [];
+}
