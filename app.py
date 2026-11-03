@@ -637,8 +637,13 @@ def provision_me(ctx: dict = Depends(require_org_member)):
 
 
 # ── Billing (Stripe, pay upfront) ─────────────────────────────────
+class CheckoutIn(BaseModel):
+    plan: str = "pro"
+    outbound: bool = False
+
+
 @app.post("/billing/checkout")
-def billing_checkout(ctx: dict = Depends(require_org_member)):
+def billing_checkout(body: CheckoutIn | None = None, ctx: dict = Depends(require_org_member)):
     """Start a Stripe Checkout session for the caller's org. Returns the URL."""
     import billing
 
@@ -646,8 +651,9 @@ def billing_checkout(ctx: dict = Depends(require_org_member)):
     settings = settings_store.get_settings(org_id)
     email = (ctx.get("user") or {}).get("email")
     name = settings.get("business_name") or ""
+    b = body or CheckoutIn()
     try:
-        url = billing.create_checkout(org_id, name, email)
+        url = billing.create_checkout(org_id, name, email, plan=b.plan, outbound=b.outbound)
     except billing.BillingError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"url": url}

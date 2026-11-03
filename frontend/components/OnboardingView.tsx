@@ -8,6 +8,11 @@ import type { Settings } from "@/lib/api";
 const INDUSTRIES = ["Plumbing & trades", "Electrical", "Salon & beauty", "Dental & clinic", "Restaurant", "Other"];
 const LANGUAGES = ["English", "Finnish", "Swedish", "German", "Spanish", "French"];
 
+const PLANS: { id: "starter" | "pro"; name: string; monthly: number; blurb: string; badge?: string }[] = [
+  { id: "starter", name: "Starter", monthly: 79, blurb: "Up to 100 answered calls a month" },
+  { id: "pro", name: "Pro", monthly: 149, blurb: "Unlimited calls + text follow-up", badge: "Popular" },
+];
+
 const CARD = "rounded-2xl border border-[#E7E6EC] bg-white p-6 shadow-[0_10px_28px_rgba(23,23,23,0.05),0_2px_6px_rgba(23,23,23,0.03)] sm:p-7";
 const INPUT = "w-full rounded-xl border border-[#E7E6EC] bg-white px-3.5 py-2.5 text-[14.5px] text-[#161616] outline-none transition-colors focus:border-cobalt placeholder:text-[#9AA0AB]";
 const LABEL = "mb-1.5 block text-[12.5px] font-bold text-[#2A2A2E]";
@@ -54,6 +59,8 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
   const [from, setFrom] = useState("09:00");
   const [to, setTo] = useState("17:00");
   const [openSat, setOpenSat] = useState(false);
+  const [plan, setPlan] = useState<"starter" | "pro">(str(s, "plan", "pro") === "starter" ? "starter" : "pro");
+  const [outbound, setOutbound] = useState(false);
 
   const [phase, setPhase] = useState<"form" | "redirecting">("form");
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +100,13 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       return;
     }
 
-    // 2) Send them to Stripe Checkout. On return, /app/welcome provisions.
+    // 2) Send them to Stripe Checkout with the chosen plan. On return, /app/welcome provisions.
     try {
-      const res = await fetch("/api/billing/checkout", { method: "POST" });
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, outbound }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) {
         setError(data.error || "Couldn't start checkout. Try again.");
@@ -190,6 +201,35 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
                 </label>
               </div>
             )}
+          </div>
+
+          <div className="mt-5">
+            <label className={LABEL}>Choose your plan</label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {PLANS.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => setPlan(p.id)}
+                  className={`rounded-xl border p-4 text-left transition-colors ${plan === p.id ? "border-cobalt bg-cobalt/5" : "border-[#E7E6EC] bg-white hover:border-[#C9CBD2]"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[14px] font-bold text-[#161616]">{p.name}</span>
+                    {p.badge && <span className="rounded-full bg-cobalt/10 px-2 py-0.5 text-[11px] font-bold text-cobalt">{p.badge}</span>}
+                  </div>
+                  <div className="mt-1 font-display text-[20px] font-bold text-[#161616]">
+                    €{p.monthly}
+                    <span className="text-[12px] font-semibold text-[#8E8E92]"> /mo</span>
+                  </div>
+                  <div className="mt-1 text-[12px] text-[#8E8E92]">{p.blurb}</div>
+                </button>
+              ))}
+            </div>
+            <label className="mt-3 flex items-center gap-2.5 text-[13px] font-semibold text-[#2A2A2E]">
+              <Toggle checked={outbound} onChange={setOutbound} />
+              Add outbound calling (+€99/mo)
+            </label>
+            <p className="mt-2 text-[12px] text-[#8E8E92]">Plus a one-time €249 setup fee on your first invoice.</p>
           </div>
 
           {error && phase === "form" && (
