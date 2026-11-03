@@ -22,6 +22,7 @@ Env it needs:
   RETELL_LLM_MODEL        optional. Defaults to gpt-5.6-terra.
 """
 import os
+import secrets
 
 import httpx
 
@@ -108,7 +109,7 @@ LANGUAGE
 
 HOW YOU TALK (sound human, not like an AI)
 - One short sentence, two at most. Always use contractions (I'll, you're, that's).
-- Don't repeat back what they said. "Tuesday at 8, perfect" — not "So you'd like Tuesday at 8am, correct?"
+- Keep it natural — don't robotically echo every detail. The one exception: always read back the exact day and time and get a clear yes before you book ("just to confirm — Thursday at eight?").
 - Little fillers are good: "sure", "let me check", "one sec", "got it". React like a person: "oh no", "yeah, totally".
 - Use pauses on purpose — a dash or "…" makes you sound like you're thinking.
 - Vary your wording; never reuse the same greeting or confirmation twice in a call.
@@ -169,15 +170,17 @@ def _tool(name, description, props, required, base, secret, speak_msg, extra_hea
     }
 
 
-def _tools(base: str, secret: str) -> list:
+def _tools(base: str, secret: str, org_token: str) -> list:
     org = {"type": "string", "description": "Business id"}
     service = {"type": "string", "description": "What the caller needs, e.g. burst pipe"}
+    org_hdr = {"X-LumiDesk-Org-Token": org_token}
     return [
         _tool(
             "check_availability",
             "Get the business's open appointment times. Always call before offering any specific time.",
             {"org_id": org, "service": service}, ["org_id"],
             base, secret, "Let me check the schedule…",
+            extra_headers=org_hdr,
         ),
         _tool(
             "book_appointment",
@@ -191,7 +194,7 @@ def _tools(base: str, secret: str) -> list:
             },
             ["org_id", "start"],
             base, secret, "One moment, booking that in…",
-            extra_headers={"X-Caller-Number": "{{user_number}}"},
+            extra_headers={**org_hdr, "X-Caller-Number": "{{user_number}}"},
         ),
         _tool(
             "search_knowledge",
@@ -201,6 +204,7 @@ def _tools(base: str, secret: str) -> list:
             {"org_id": org, "query": {"type": "string", "description": "The caller's question, in their own words"}},
             ["org_id", "query"],
             base, secret, "Let me check that for you…",
+            extra_headers=org_hdr,
         ),
     ]
 
@@ -221,6 +225,10 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
     lang = _s(settings or {}, "default_language", "English")
     lang_code = _LANG_CODES.get(lang.lower(), "en-US")
 
+    # Per-org tools token: each agent is bound to its own org server-side, sent
+    # as the X-LumiDesk-Org-Token header on every tool call (verified in tools_api).
+    tools_token = secrets.token_urlsafe(24)
+
     prompt = build_prompt(settings or {}, org_name, org_id)
 
     # 1) Retell LLM: the prompt + the two booking tools.
@@ -228,7 +236,7 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
         "general_prompt": prompt,
         "model_config": {"type": "cascading", "primary": {"model": model}, "temperature": 0.2},
         "start_speaker": "agent",
-        "general_tools": _tools(base, secret),
+        "general_tools": _tools(base, secret, tools_token),
     })
     llm_id = llm.get("llm_id")
     if not llm_id:
@@ -259,6 +267,7 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
             "retell_llm_id": llm_id,
             "retell_agent_id": agent_id,
             "retell_voice_id": voice,
+            "tools_token": tools_token,
             # An org with a live agent is past onboarding — mark it so every
             # provision path (checkout, /provision/me retry, admin) agrees and
             # the dashboard gate never loops.

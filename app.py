@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -45,13 +46,54 @@ app = FastAPI()
 # Allow the marketing site (served from another origin) to POST to /leads.
 # Set LUMIDESK_SITE_ORIGIN to your domain(s) in production, e.g.
 #   LUMIDESK_SITE_ORIGIN="https://lumidesk.ai,https://www.lumidesk.ai"
-_SITE_ORIGINS = [o.strip() for o in os.getenv("LUMIDESK_SITE_ORIGIN", "*").split(",") if o.strip()]
+# Default (env unset/empty) is a conservative localhost-only list — never "*".
+# Set LUMIDESK_SITE_ORIGIN="*" explicitly if you really mean to allow any origin.
+_SITE_ORIGINS = [o.strip() for o in os.getenv("LUMIDESK_SITE_ORIGIN", "").split(",") if o.strip()]
+if not _SITE_ORIGINS:
+    print("⚠️  LUMIDESK_SITE_ORIGIN not set — CORS limited to localhost; set it to your site origin(s) in production.")
+    _SITE_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_SITE_ORIGINS or ["*"],
+    allow_origins=_SITE_ORIGINS,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# ── Lightweight in-memory per-IP rate limiter ─────────────────────
+# The public, unauthenticated /demo/* and /leads endpoints run paid work
+# (STT/LLM/TTS/scraping) or can be flooded, so we throttle per client IP.
+# This runs as a single uvicorn process, so a plain dict guarded by a lock is
+# enough — no extra dependency or shared store needed.
+_RATE_BUCKETS: dict[str, list[float]] = {}
+_RATE_LOCK = threading.Lock()
+
+
+def _rate_limit(request: Request, bucket: str, limit: int, window_sec: int) -> None:
+    """Allow at most `limit` requests per `window_sec` seconds per client IP.
+
+    Raises HTTPException(429) when the caller exceeds the limit for `bucket`.
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        ip = xff.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else "unknown"
+    key = f"{bucket}:{ip}"
+    now = time.monotonic()
+    cutoff = now - window_sec
+    with _RATE_LOCK:
+        recent = [t for t in _RATE_BUCKETS.get(key, []) if t > cutoff]
+        if len(recent) >= limit:
+            _RATE_BUCKETS[key] = recent
+            raise HTTPException(status_code=429, detail="Too many requests — please slow down.")
+        recent.append(now)
+        _RATE_BUCKETS[key] = recent
+        # Opportunistically prune stale buckets so the dict can't grow forever.
+        if len(_RATE_BUCKETS) > 1024:
+            stale_before = now - 3600
+            for k in [k for k, v in _RATE_BUCKETS.items() if not v or v[-1] < stale_before]:
+                del _RATE_BUCKETS[k]
+
 
 # Booking tools the voice agent (Retell/Vapi) calls mid-call:
 #   POST /tools/check_availability, /tools/book_appointment, /tools/send_sms
@@ -123,12 +165,13 @@ class LeadIn(BaseModel):
 
 
 @app.post("/leads")
-def create_lead(body: LeadIn):
+def create_lead(body: LeadIn, request: Request):
     """Public: capture a marketing-site lead ('Book a demo' / 'Hear it live').
 
     Intentionally unauthenticated (the whole point is anonymous visitors). We only
     require a name plus at least one way to reach them, then store it via leads.py.
     """
+    _rate_limit(request, "leads", 10, 300)
     if not body.name.strip() or not (body.phone.strip() or body.email.strip()):
         return JSONResponse(
             {"error": "A name and a phone or email are required."}, status_code=400
@@ -876,8 +919,9 @@ def serve_demo():
 
 
 @app.post("/demo/setup")
-def demo_setup(body: DemoSetup):
+def demo_setup(body: DemoSetup, request: Request):
     """Build the demo assistant's knowledge from the guided-interview answers."""
+    _rate_limit(request, "demo_setup", 10, 60)
     text = (
         f"Business name: {body.business}\n"
         f"Services offered: {body.services}\n"
@@ -892,6 +936,7 @@ def demo_setup(body: DemoSetup):
 
 @app.post("/demo/ask")
 async def demo_ask(
+    request: Request,
     audio: UploadFile = File(...),
     language: str = Form("english"),
     call_id: str = Form(None),
@@ -903,6 +948,7 @@ async def demo_ask(
     builds its call log in the browser instead), so trying the pitch can't crowd
     a real customer's data.
     """
+    _rate_limit(request, "demo_ask", 20, 60)
     audio_bytes = await audio.read()
     return _voice_answer(
         DEMO_ORG, audio_bytes, language, call_id=call_id, log=False, history=history
@@ -914,18 +960,20 @@ class TranscriptIn(BaseModel):
 
 
 @app.post("/demo/summarize")
-def demo_summarize(body: TranscriptIn):
+def demo_summarize(body: TranscriptIn, request: Request):
     """Extract lead details from a demo call's transcript. Returns them; stores nothing."""
+    _rate_limit(request, "demo_summarize", 20, 60)
     return extract_lead(_llm(), body.transcript)
 
 
 @app.post("/demo/scrape")
-def demo_scrape(body: ScrapeIn):
+def demo_scrape(body: ScrapeIn, request: Request):
     """Public onboarding-by-website for the demo: read the site, build the demo KB.
 
     SSRF-guarded inside scrape_site(); this endpoint is intentionally unauthenticated
     like the rest of /demo, and only ever writes to the shared demo knowledge base.
     """
+    _rate_limit(request, "demo_scrape", 10, 60)
     try:
         result = scrape_site(body.url)
     except ValueError as e:

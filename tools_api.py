@@ -37,6 +37,59 @@ def verify_secret(x_lumidesk_secret: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Bad or missing tool secret.")
 
 
+def _org_by_token(token: str) -> str | None:
+    """Return the org whose settings hold this per-org tools token, or None."""
+    try:
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                text("select org_id from org_settings where data->>'tools_token' = :t limit 1"),
+                {"t": token},
+            ).scalar()
+        return str(row) if row else None
+    except Exception:
+        return None
+
+
+def _require_real_org(org_id) -> str:
+    """Validate org_id is a real, existing organization. No silent fallback."""
+    try:
+        uuid.UUID(str(org_id))
+        with get_engine().connect() as conn:
+            exists = conn.execute(
+                text("select 1 from organizations where id = cast(:id as uuid)"),
+                {"id": str(org_id)},
+            ).scalar()
+    except (ValueError, TypeError, AttributeError):
+        exists = None
+    if exists:
+        return str(org_id)
+    raise HTTPException(status_code=400, detail="Unknown or invalid org_id.")
+
+
+def tool_auth(
+    x_lumidesk_secret: str = Header(default=""),
+    x_lumidesk_org_token: str = Header(default=""),
+) -> dict:
+    """Authenticate a tool call, returning {"org_id": <str|None>}.
+
+    New agents send a per-org token (X-LumiDesk-Org-Token) that binds the call to
+    one org server-side; the body org_id is ignored on that path. Legacy agents
+    send only the global X-LumiDesk-Secret, and the caller must then strictly
+    validate the body org_id (no silent default) via _require_real_org.
+    """
+    if x_lumidesk_org_token:
+        org = _org_by_token(x_lumidesk_org_token)
+        if org is None:
+            raise HTTPException(status_code=401, detail="Bad org token.")
+        return {"org_id": org}
+    expected = os.getenv("TOOLS_SHARED_SECRET")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Booking tools are not configured (set TOOLS_SHARED_SECRET).")
+    if not hmac.compare_digest(x_lumidesk_secret, expected):
+        raise HTTPException(status_code=401, detail="Bad or missing tool secret.")
+    return {"org_id": None}
+
+
 # ── helpers ───────────────────────────────────────────────────────────
 def _speak(dt: datetime) -> str:
     """A human, speakable time like 'Tuesday at 8:00 AM'."""
@@ -122,8 +175,8 @@ class SmsIn(BaseModel):
 
 # ── endpoints ─────────────────────────────────────────────────────────
 @router.post("/check_availability")
-def check_availability(body: CheckAvailabilityIn, _: None = Depends(verify_secret)):
-    org = _resolve_org(body.org_id)
+def check_availability(body: CheckAvailabilityIn, auth: dict = Depends(tool_auth)):
+    org = auth["org_id"] or _require_real_org(body.org_id)
     slots = calendar_google.suggest_slots(org_id=org, days=body.days)
     return {
         "org_id": body.org_id,
@@ -135,7 +188,7 @@ def check_availability(body: CheckAvailabilityIn, _: None = Depends(verify_secre
 @router.post("/book_appointment")
 def book_appointment(
     body: BookIn,
-    _: None = Depends(verify_secret),
+    auth: dict = Depends(tool_auth),
     x_caller_number: str = Header(default=""),
 ):
     start_dt = _parse_start(body.start)
@@ -161,7 +214,7 @@ def book_appointment(
     description = "\n".join(desc_lines)
 
     # 1) real calendar event on the business's own calendar (skipped if not connected)
-    org = _resolve_org(body.org_id)
+    org = auth["org_id"] or _require_real_org(body.org_id)
     event_id = None
     if calendar_google.is_configured(org):
         try:
@@ -180,7 +233,7 @@ def book_appointment(
 
     # 2) source-of-truth row for the dashboard
     booking_id = _save_booking(
-        body.org_id, body.customer_name, phone, body.customer_email,
+        org, body.customer_name, phone, body.customer_email,
         service, start_dt, body.notes, event_id, body.call_id,
     )
 
@@ -203,7 +256,10 @@ def book_appointment(
 
 
 @router.post("/send_sms")
-def send_sms(body: SmsIn, _: None = Depends(verify_secret)):
+def send_sms(body: SmsIn, auth: dict = Depends(tool_auth)):
+    # Strictly validate the tenant (no silent default), consistent with the other
+    # tools, even though sending the SMS itself isn't org-scoped yet.
+    _ = auth["org_id"] or _require_real_org(body.org_id)
     return sms_twilio.send(body.to, body.message)
 
 
@@ -213,7 +269,7 @@ class SearchKnowledgeIn(BaseModel):
 
 
 @router.post("/search_knowledge")
-def search_knowledge(body: SearchKnowledgeIn, _: None = Depends(verify_secret)):
+def search_knowledge(body: SearchKnowledgeIn, auth: dict = Depends(tool_auth)):
     """Search the business's knowledge base to answer a caller's question.
 
     Retrieval only — returns the most relevant passages for the agent's own LLM to
@@ -221,7 +277,7 @@ def search_knowledge(body: SearchKnowledgeIn, _: None = Depends(verify_secret)):
     """
     import kb
 
-    org_id = _resolve_org(body.org_id)
+    org_id = auth["org_id"] or _require_real_org(body.org_id)
     query = (body.query or "").strip()
     if not query or not kb.has_index(org_id):
         return {"found": False, "context": ""}

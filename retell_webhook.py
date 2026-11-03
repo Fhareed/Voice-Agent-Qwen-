@@ -139,16 +139,32 @@ def _outbound_target_status(call: dict, turns: list) -> str:
 
 # ── security ────────────────────────────────────────────────────────────────
 def _verify_signature(raw_body: bytes, signature: str | None) -> None:
-    """Optional defense-in-depth: if RETELL_API_KEY is set and a signature header
-    is present, require it to match. If no key is configured we rely on the URL
-    secret alone."""
+    """Defense-in-depth on top of the URL-path secret.
+
+    Enforcement is OFF by default and gated behind RETELL_REQUIRE_SIGNATURE
+    ("1"/"true"/"yes") on purpose: our HMAC scheme must exactly match how Retell
+    signs (raw body vs. re-serialized JSON, header format), and if it doesn't,
+    enforcing would silently 401 every real webhook and drop all call logging.
+    So by default we only LOG a mismatch; once the scheme is confirmed against a
+    real webhook, set RETELL_REQUIRE_SIGNATURE=1 to actually reject forgeries
+    (both a wrong signature and, then, a missing one). The URL secret guards the
+    endpoint in the meantime."""
     api_key = os.getenv("RETELL_API_KEY")
-    if not api_key or not signature:
+    if not api_key:
+        # Can't verify — rely on the URL secret alone.
+        return
+    require = (os.getenv("RETELL_REQUIRE_SIGNATURE") or "").strip().lower() in ("1", "true", "yes")
+    if not signature:
+        if require:
+            raise HTTPException(status_code=401, detail="Missing webhook signature.")
         return
     expected = hmac.new(api_key.encode(), raw_body, hashlib.sha256).hexdigest()
     got = signature.split("=")[-1].strip()
     if not hmac.compare_digest(expected, got):
-        print("retell_webhook: x-retell-signature mismatch — relying on URL secret")
+        if require:
+            raise HTTPException(status_code=401, detail="Bad webhook signature.")
+        print("retell_webhook: x-retell-signature mismatch — NOT enforcing "
+              "(set RETELL_REQUIRE_SIGNATURE=1 once the scheme is confirmed).")
 
 
 # ── endpoint ──────────────────────────────────────────────────────────────
