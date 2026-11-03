@@ -194,7 +194,7 @@ def _tools(base: str, secret: str, org_token: str) -> list:
             },
             ["org_id", "start"],
             base, secret, "One moment, booking that in…",
-            extra_headers={**org_hdr, "X-Caller-Number": "{{user_number}}"},
+            extra_headers={**org_hdr, "X-Caller-Number": "{{user_number}}", "X-Call-Id": "{{call_id}}"},
         ),
         _tool(
             "search_knowledge",

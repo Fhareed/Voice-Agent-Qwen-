@@ -97,10 +97,19 @@ def _speak(dt: datetime) -> str:
     return f"{dt.strftime('%A')} at {hour}:{dt.strftime('%M %p')}"
 
 
-def _parse_start(s: str) -> datetime:
-    dt = datetime.fromisoformat(s)
+def _parse_start(s: str, org_id=None) -> datetime:
+    # datetime.fromisoformat raises on bad input and (on Python 3.10) on a
+    # trailing "Z"; normalise Z→+00:00 and turn any parse failure into a 422 the
+    # agent can recover from, rather than a 500 that breaks the call.
+    try:
+        dt = datetime.fromisoformat((s or "").strip().replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=422,
+            detail="I couldn't read that appointment time — please offer the caller a specific time again.",
+        )
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=calendar_google.default_tz())
+        dt = dt.replace(tzinfo=calendar_google.tz_for_org(org_id))
     return dt
 
 
@@ -190,8 +199,11 @@ def book_appointment(
     body: BookIn,
     auth: dict = Depends(tool_auth),
     x_caller_number: str = Header(default=""),
+    x_call_id: str = Header(default=""),
 ):
-    start_dt = _parse_start(body.start)
+    # Resolve the org first so the time is parsed in that org's timezone.
+    org = auth["org_id"] or _require_real_org(body.org_id)
+    start_dt = _parse_start(body.start, org)
     service = body.service or "appointment"
     # The caller's number comes straight from the phone network: Retell injects it
     # into the X-Caller-Number header as {{user_number}}, so the agent never has to
@@ -214,7 +226,6 @@ def book_appointment(
     description = "\n".join(desc_lines)
 
     # 1) real calendar event on the business's own calendar (skipped if not connected)
-    org = auth["org_id"] or _require_real_org(body.org_id)
     event_id = None
     if calendar_google.is_configured(org):
         try:
@@ -232,9 +243,13 @@ def book_appointment(
             event_id = None
 
     # 2) source-of-truth row for the dashboard
+    # Prefer the Retell call id from the X-Call-Id header ({{call_id}}); fall back
+    # to anything the agent put in the body. This links the booking to its call so
+    # the webhook's _has_booking_for_call matches and the call shows as "Booked".
+    call_id = (x_call_id or "").strip() or (body.call_id or None)
     booking_id = _save_booking(
         org, body.customer_name, phone, body.customer_email,
-        service, start_dt, body.notes, event_id, body.call_id,
+        service, start_dt, body.notes, event_id, call_id,
     )
 
     # 3) confirmation text to the caller

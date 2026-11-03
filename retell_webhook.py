@@ -223,6 +223,22 @@ async def retell_webhook(secret: str, request: Request):
     # The "other party": who we called (outbound) vs who called us (inbound).
     other_phone = to_number if is_outbound else from_number
 
+    # Best-effort: pull the caller's name + intent from the transcript so phone
+    # calls show more than "Unknown caller". Never let a failure here break the
+    # call log — use the providers module directly to avoid a circular import.
+    caller_name = None
+    intent = None
+    try:
+        from lead_extract import extract_lead
+        from providers import get_llm_provider
+        transcript_text = _transcript_text(turns)
+        if transcript_text.strip():
+            fields = extract_lead(get_llm_provider().get_llm(), transcript_text) or {}
+            caller_name = fields.get("caller_name") or None
+            intent = fields.get("intent") or None
+    except Exception as e:
+        print(f"[retell_webhook] lead extraction skipped: {e}")
+
     call_logs.upsert_full_call(
         org_id,
         call_id,
@@ -237,6 +253,8 @@ async def retell_webhook(secret: str, request: Request):
         started_at=_ms_to_iso(call.get("start_timestamp")),
         ended_at=_ms_to_iso(call.get("end_timestamp")),
         is_booking=_has_booking_for_call(org_id, call_id),
+        caller_name=caller_name,
+        intent=intent,
     )
 
     # For outbound calls, mirror the outcome onto the campaign target.

@@ -54,6 +54,15 @@ const removeBtnStyle: CSSProperties = {
   padding: "4px 6px",
 };
 
+// Muted "ghost" look for the secondary (US/CA-only) buy action, so it doesn't
+// read as the default next to the recommended forward/import options.
+const secondaryBtnStyle: CSSProperties = {
+  background: "transparent",
+  color: "var(--ink-700)",
+  border: "1px solid var(--hair)",
+  boxShadow: "none",
+};
+
 export default function NumberView({
   numbers,
   orgName,
@@ -211,29 +220,40 @@ export default function NumberView({
               {hasNumber ? (
                 <>
                   <div className="kblist">
-                    {list.map((n) => (
-                      <div className="kbrow" key={n.phone_e164}>
-                        <div className="kbrow-ic">
-                          <Icon name="i-phone" />
+                    {list.map((n) => {
+                      // +1 is the US/Canada dialling code. For an EU business a
+                      // US/CA number is a forwarding target, not their local line.
+                      const isUsCa = n.phone_e164.startsWith("+1");
+                      return (
+                        <div className="kbrow" key={n.phone_e164}>
+                          <div className="kbrow-ic">
+                            <Icon name="i-phone" />
+                          </div>
+                          <div className="kbrow-t">
+                            <b>{n.phone_e164}</b>
+                            <span>
+                              {isUsCa
+                                ? "US/Canada line — forward your local number here"
+                                : (n.label ?? "Mapped number")}
+                            </span>
+                          </div>
+                          {/* It's in this list, so it's mapped/routed to your org —
+                              "Connected", not an overclaimed "Live". */}
+                          <span style={pillStyle}>
+                            <Icon name="i-check" />
+                            Connected
+                          </span>
+                          <button
+                            type="button"
+                            style={removeBtnStyle}
+                            onClick={() => remove(n.phone_e164)}
+                            disabled={busy}
+                          >
+                            Remove
+                          </button>
                         </div>
-                        <div className="kbrow-t">
-                          <b>{n.phone_e164}</b>
-                          <span>{n.label ?? "Active number"}</span>
-                        </div>
-                        <span style={pillStyle}>
-                          <Icon name="i-check" />
-                          Live
-                        </span>
-                        <button
-                          type="button"
-                          style={removeBtnStyle}
-                          onClick={() => remove(n.phone_e164)}
-                          disabled={busy}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="kbhint">
@@ -257,24 +277,28 @@ export default function NumberView({
               Set up your number
             </div>
 
-            <button type="button" className="kbbtn" onClick={provision} disabled={busy}>
+            {/* Primary, recommended for Finland/EU: keep your own number. */}
+            <div className="kbhead">
               <Icon name="i-phone" />
-              {busy ? "Setting up…" : "Get my number"}
-            </button>
-
-            <div className="kbhint">
-              US/Canada numbers are instant. Outside the US, keep your current number and
-              forward it here.
+              Keep your current number
             </div>
 
+            <div className="kbhint">
+              Recommended for most businesses, including Finland and the EU. Keep
+              advertising your normal business number and forward it to your AI line
+              below — callers still dial your familiar number, and the call rings
+              straight through to your AI receptionist.
+            </div>
+
+            {/* Primary option 2: bring your own number over SIP. */}
             <div className="kbtabs">
               <button
                 type="button"
                 className={advanced ? "on" : ""}
                 onClick={() => setAdvanced((v) => !v)}
               >
-                <Icon name="i-settings" />
-                Advanced
+                <Icon name="i-wrench" />
+                Import your number (SIP / advanced)
               </button>
             </div>
 
@@ -330,10 +354,34 @@ export default function NumberView({
                 </button>
 
                 <div className="kbhint">
-                  For bringing a number from Twilio or your own carrier over SIP.
+                  Bring your own number (Finland/EU, Twilio, or any carrier) in over
+                  SIP/BYOC — it becomes your AI receptionist line directly, no
+                  forwarding needed.
                 </div>
               </form>
             )}
+
+            {/* Secondary: buy a brand-new US/Canada number. */}
+            <div className="kbhead" style={{ marginTop: 18 }}>
+              <Icon name="i-globe" />
+              Buy a new US/Canada number
+            </div>
+
+            <div className="kbhint">
+              US/Canada only. Instant to set up. Elsewhere this won&apos;t be a local
+              number your customers recognise — keep your own number instead (above).
+            </div>
+
+            <button
+              type="button"
+              className="kbbtn"
+              style={secondaryBtnStyle}
+              onClick={provision}
+              disabled={busy}
+            >
+              <Icon name="i-globe" />
+              {busy ? "Setting up…" : "Buy a US/Canada number"}
+            </button>
           </div>
         </div>
       </main>

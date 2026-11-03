@@ -30,7 +30,11 @@ def _agents_for(org_id: str):
 
 def ensure_number_for_org(org_id: str) -> dict:
     """Reuse the agent's existing Retell number if it has one, else buy a US/CA one;
-    then map it to the org. Idempotent — safe to call on every provision."""
+    then map it to the org. Idempotent — safe to call on every provision.
+
+    Retell can only BUY US/CA numbers, so we only auto-buy when the configured
+    country is US/CA. For other (EU) countries we don't hand the org a wrong US
+    number — we return manual_number_required and let them forward/import instead."""
     s = settings_store.get_settings(org_id)
     inbound = s.get("retell_agent_id")
     outbound = s.get("retell_outbound_agent_id")
@@ -40,9 +44,13 @@ def ensure_number_for_org(org_id: str) -> dict:
     num = s.get("retell_phone_number") or retell_numbers.find_number_for_agent(inbound)
     reused = bool(num)
     if not num:
+        country = os.getenv("RETELL_NUMBER_COUNTRY", "US").upper()
+        if country not in ("US", "CA"):
+            # A wrong US number is worse than none for a non-US org.
+            return {"ok": False, "reason": "manual_number_required", "country": country}
         num = retell_numbers.buy_number(
             inbound, outbound,
-            country_code=os.getenv("RETELL_NUMBER_COUNTRY", "US"),
+            country_code=country,
             nickname=name,
         )
     org_numbers_store.register_number(org_id, num, label=name or "Primary line")

@@ -20,6 +20,7 @@ Env:
   STRIPE_PRICE_ID        optional legacy fallback for the plan price.
 """
 import os
+from contextlib import contextmanager
 
 import retell_provision
 import settings_store
@@ -142,20 +143,47 @@ def _record_payment(org_id: str, customer, subscription, plan=None) -> None:
     settings_store.save_settings(org_id, patch)
 
 
+@contextmanager
+def _org_provision_lock(org_id: str):
+    """Serialize provisioning per org via a pg advisory lock. Degrades to a
+    no-op if the lock can't be taken, so provisioning never hard-fails on it."""
+    from sqlalchemy import text
+
+    from db import get_engine
+    conn = None
+    try:
+        conn = get_engine().connect()
+        conn.execute(text("select pg_advisory_lock(hashtext(:k))"), {"k": f"provision:{org_id}"})
+        conn.commit()  # ensure the lock statement is applied on this connection
+    except Exception:
+        conn = None  # couldn't lock — fall through unlocked rather than block
+    try:
+        yield
+    finally:
+        if conn is not None:
+            try:
+                conn.execute(text("select pg_advisory_unlock(hashtext(:k))"), {"k": f"provision:{org_id}"})
+                conn.commit()
+            except Exception:
+                pass
+            conn.close()
+
+
 def _provision_org_if_needed(org_id: str) -> str | None:
     """Provision the org's Retell agent once (idempotent). Returns the agent_id or None."""
-    settings = settings_store.get_settings(org_id)  # re-read fresh: skip if already provisioned
-    agent_id = settings.get("retell_agent_id")
-    if agent_id:
+    with _org_provision_lock(org_id):  # serialize check-and-provision across concurrent confirms
+        settings = settings_store.get_settings(org_id)  # re-read fresh: skip if already provisioned
+        agent_id = settings.get("retell_agent_id")
+        if agent_id:
+            return agent_id
+        name = settings.get("business_name") or ""
+        try:
+            result = retell_provision.provision_org(org_id, settings, name)
+            agent_id = result.get("agent_id")
+        except retell_provision.ProvisionError:
+            return None  # payment already recorded; provisioning can be retried
+        settings_store.save_settings(org_id, {"onboarded": True})
         return agent_id
-    name = settings.get("business_name") or ""
-    try:
-        result = retell_provision.provision_org(org_id, settings, name)
-        agent_id = result.get("agent_id")
-    except retell_provision.ProvisionError:
-        return None  # payment already recorded; provisioning can be retried
-    settings_store.save_settings(org_id, {"onboarded": True})
-    return agent_id
 
 
 def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> str | None:
@@ -170,7 +198,8 @@ def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> 
     if agent_id and _auto not in ("", "0", "false", "no"):
         try:
             import numbers_api
-            numbers_api.ensure_number_for_org(org_id)  # reuse existing number, else buy; maps it
+            with _org_provision_lock(org_id):  # serialize so two confirms can't double-buy
+                numbers_api.ensure_number_for_org(org_id)  # reuse existing number, else buy; maps it
         except Exception as e:
             print(f"[billing] auto number provisioning skipped: {e}")
     return agent_id
@@ -185,7 +214,8 @@ def confirm_and_provision(org_id: str, session_id: str) -> dict:
     plan = _sv(meta, "plan")
     if meta_org and meta_org != org_id:
         raise BillingError("This payment doesn't belong to your account.")
-    if _sv(session, "payment_status") != "paid" and _sv(session, "status") != "complete":
+    paid = _sv(session, "payment_status") in ("paid", "no_payment_required")
+    if not paid:
         raise BillingError("Payment hasn't completed yet.")
     agent_id = _mark_paid_and_provision(
         org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
@@ -205,7 +235,14 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
         meta = _sv(session, "metadata") or {}
         org_id = _sv(meta, "org_id")
         plan = _sv(meta, "plan")
-        if org_id:
+        # async_payment_succeeded is inherently paid; for the completed event a
+        # session can be "complete" before funds settle (delayed EU methods), so
+        # require an actually-paid status before provisioning.
+        paid = (
+            event["type"] == "checkout.session.async_payment_succeeded"
+            or _sv(session, "payment_status") in ("paid", "no_payment_required")
+        )
+        if org_id and paid:
             _mark_paid_and_provision(
                 org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
             )

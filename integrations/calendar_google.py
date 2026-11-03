@@ -18,6 +18,8 @@ import os
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+import settings_store
+
 # Env:
 #   GOOGLE_CALENDAR_ID           the calendar to read/write (e.g. the business's gmail address)
 #   GOOGLE_SERVICE_ACCOUNT_FILE  path to the service-account JSON key file
@@ -27,10 +29,27 @@ from zoneinfo import ZoneInfo
 
 _SCOPES = ["https://www.googleapis.com/auth/calendar"]
 _service = None
+_warned_missing_sa_file = False
+
+
+def tz_for_org(org_id=None) -> ZoneInfo:
+    """The org's timezone: its saved `timezone` setting if valid, else DEFAULT_TZ
+    env, else Europe/Helsinki. Never raises — bad values fall back."""
+    name = None
+    if org_id:
+        try:
+            name = (settings_store.get_settings(org_id) or {}).get("timezone")
+        except Exception:
+            name = None
+    name = (name or os.getenv("DEFAULT_TZ") or "Europe/Helsinki").strip()
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return ZoneInfo("Europe/Helsinki")
 
 
 def default_tz() -> ZoneInfo:
-    return ZoneInfo(os.getenv("DEFAULT_TZ", "Europe/Helsinki"))
+    return tz_for_org(None)
 
 
 def _parse_google_dt(s: str) -> datetime:
@@ -48,7 +67,15 @@ def _parse_google_dt(s: str) -> datetime:
 
 def has_service_account() -> bool:
     """True if the Google service-account key file is configured on the server."""
+    global _warned_missing_sa_file
     path = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if path and not os.path.isfile(path) and not _warned_missing_sa_file:
+        _warned_missing_sa_file = True
+        print(
+            f"⚠️  GOOGLE_SERVICE_ACCOUNT_FILE is set to '{path}' but no file exists "
+            "there — Google Calendar is DISABLED (bookings save, but no calendar "
+            "events / real availability). Point it at the key file on THIS host."
+        )
     return bool(path and os.path.isfile(path))
 
 
@@ -157,7 +184,7 @@ def suggest_slots(org_id=None, from_dt=None, days=5, max_slots=4):
     same business-hour candidates are returned so the agent can still offer times
     during development.
     """
-    tz = default_tz()
+    tz = tz_for_org(org_id)
     slot_min = int(os.getenv("BOOKING_SLOT_MINUTES", "60"))
     day_start = int(os.getenv("BOOKING_DAY_START", "8"))
     day_end = int(os.getenv("BOOKING_DAY_END", "18"))
