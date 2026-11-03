@@ -88,6 +88,26 @@ def _mark_paid_and_provision(org_id: str, customer, subscription) -> str | None:
             agent_id = result.get("agent_id")
         except retell_provision.ProvisionError:
             agent_id = None  # payment succeeded; provisioning can be retried
+
+    # Give the business a real phone line + bind the agent. Opt-in via env so it
+    # never fires unexpectedly in dev/test; US/CA numbers only (EU customers
+    # forward their existing number to this one, or import via SIP).
+    _auto = (os.getenv("RETELL_AUTO_BUY_NUMBER") or "").strip().lower()
+    if agent_id and _auto not in ("", "0", "false", "no"):
+        try:
+            import org_numbers_store
+            import retell_numbers
+            fresh = settings_store.get_settings(org_id)
+            if not fresh.get("retell_phone_number"):
+                num = retell_numbers.buy_number(
+                    agent_id, fresh.get("retell_outbound_agent_id"),
+                    country_code=os.getenv("RETELL_NUMBER_COUNTRY", "US"),
+                    nickname=fresh.get("business_name") or "",
+                )
+                org_numbers_store.register_number(org_id, num, label=fresh.get("business_name") or "")
+                settings_store.save_settings(org_id, {"retell_phone_number": num})
+        except Exception as e:
+            print(f"[billing] auto number provisioning skipped: {e}")
     return agent_id
 
 

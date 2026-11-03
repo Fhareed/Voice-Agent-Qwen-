@@ -20,6 +20,7 @@ from auth import get_current_user, sign_in, sign_up
 from deps import require_org_member
 from lead_extract import extract_lead
 from leads import save_lead
+from numbers_api import router as numbers_router
 from outbound_api import router as outbound_router
 from providers import get_llm_provider, get_stt, get_tts, get_vector_store
 from rag_chain import build_qa_chain
@@ -60,6 +61,7 @@ app.include_router(tools_router)
 #   POST /retell/webhook/{secret}
 app.include_router(retell_router)
 app.include_router(outbound_router)
+app.include_router(numbers_router)
 
 # Wire up the capabilities through the provider layer.
 # To swap any vendor, edit providers/__init__.py -- not this file.
