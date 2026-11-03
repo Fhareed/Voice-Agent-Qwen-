@@ -15,7 +15,7 @@ export default function Sidebar({
   active,
   orgName,
 }: {
-  active: "calls" | "outbound" | "bookings" | "knowledge" | "calendar" | "settings";
+  active: "calls" | "outbound" | "bookings" | "knowledge" | "calendar" | "numbers" | "settings";
   orgName?: string | null;
 }) {
   const router = useRouter();
@@ -61,6 +61,13 @@ export default function Sidebar({
         title="Calendar sync"
       >
         <Icon name="i-calendar-check" />
+      </Link>
+      <Link
+        href="/app/numbers"
+        className={`sideicon${active === "numbers" ? " on" : ""}`}
+        title="Phone number"
+      >
+        <Icon name="i-wrench" />
       </Link>
       <div className="sideicon" title="Customers (coming soon)">
         <Icon name="i-users" />

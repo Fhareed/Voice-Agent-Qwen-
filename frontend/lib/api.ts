@@ -170,3 +170,15 @@ export async function fetchCampaigns(session: Session): Promise<OutboundCampaign
   );
   return data.campaigns ?? [];
 }
+
+// ── Phone numbers (per org) ────────────────────────────────────────
+export interface NumberRow {
+  phone_e164: string;
+  label: string | null;
+  created_at: string | null;
+}
+
+export async function fetchNumbers(session: Session): Promise<NumberRow[]> {
+  const data = await backendGet<{ numbers: NumberRow[] }>("/numbers", session);
+  return data.numbers ?? [];
+}
