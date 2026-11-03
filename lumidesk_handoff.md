@@ -42,6 +42,16 @@ The backend no longer depends on my laptop or ngrok. It runs 24/7 on a **free Or
 - **Deployed to the cloud (see §2a):** off localhost + ngrok; the backend is now always-on at `lumidesk-farid.duckdns.org`.
 - **CI** (GitHub Actions): on every push to `main` it runs `ruff` lint + a compile check + an import smoke test on the backend. (Note: CI does NOT yet check the frontend — a `next build`/`tsc` step could be added.)
 
+## 3a. Self-serve launch work (Nov 3 2026) — gaps #1/#2/#3 fixed
+A production-readiness audit found the self-serve loop didn't fully close. The three biggest blockers are now fixed:
+
+**#1 Phone-number automation + #2 inbound routing — DONE (tested live).** New backend: `retell_numbers.py` (buy / import / attach / list / release numbers via Retell — uses Retell's CURRENT weighted-agent arrays `inbound_agents`/`outbound_agents` = `[{agent_id, weight:1}]`; the old single `*_agent_id` fields were removed by Retell after 2026-03-31), `org_numbers_store.py` (writes + reads the number→org map in `org_phone_numbers` — the piece that was missing, so inbound calls now route to the right business instead of only the `RETELL_DEFAULT_ORG_ID` fallback), `numbers_api.py` (`GET /numbers`, `POST /numbers/provision` [smart reuse-or-buy], `/buy` [US/CA], `/import` [SIP, for EU], `/assign`, `DELETE /numbers/{e164}`). `ensure_number_for_org()` reuses a number already bound to the org's agent, else buys one, then maps it; `billing.py` calls it after a paid signup when `RETELL_AUTO_BUY_NUMBER=1`. Dashboard UI: **`/app/numbers`** (`components/NumberView.tsx`, sidebar "Phone number") — one-click Get-my-number, forwarding guidance, SIP import.
+- **Number strategy:** Retell only SELLS US/CA numbers (~$2/mo). For Finland/EU, the customer keeps their own number and FORWARDS it to a US Retell number (inbound answering works; their customers still dial the local number), or SIP-imports a native EU number. Retell outbound destinations don't include Finland without a support request.
+- **Data fix:** DeepO3's `settings.retell_agent_id` was stale (a deleted agent → Retell 400 "Invalid inbound agent"); set it to the live LumiDeskDemo agent `agent_4f6ee683dc04fa746637784e0e`. Its number **+19786345890** is now mapped to the DeepO3 org (id `a98dfa4e-e1a8-4317-8cfe-a59180b15d3f`). New signups get a fresh valid agent, so this was a one-off.
+
+**#3 Billing matches the finalized pricing — DONE (tested, Stripe test mode).** `billing.py` is now plan-aware: Checkout (subscription mode) = the chosen plan's recurring price **+ a one-time €249 setup fee** (a one-time line item, billed on the first invoice only; skipped when `settings.setup_fee_paid`) **+ optional outbound add-on**. Prices resolve by **Stripe lookup_key** — no Price IDs in `.env` — created by **`scripts/stripe_setup_prices.py`** (makes `plan_starter_eur` €79, `plan_pro_eur` €149, `setup_fee_eur` €249 one-time, `addon_outbound_eur` €99; run once per Stripe mode — already run in TEST). Records `plan` + `setup_fee_paid` on confirm/webhook. EU VAT behind `STRIPE_AUTOMATIC_TAX=1` (needs Stripe Tax activated). Onboarding now has a **Starter/Pro plan picker + outbound toggle**. Legacy single `STRIPE_PRICE_ID` stays as a fallback. The old Stripe product "LumiDesk €80/mo" is now unused (archive when convenient).
+- **New optional env:** `RETELL_AUTO_BUY_NUMBER` (auto-buy a number on paid signup), `RETELL_NUMBER_COUNTRY` (default US), `STRIPE_AUTOMATIC_TAX`.
+
 ## 4. CURRENT FOCUS — the Riyadh deal
 - I had a strong demo call with a **prospect in Riyadh** (a customer-service agent who's been pushing for an AI receptionist at his company). He loved it — even offered free office space and talked about scaling together — and he's **referring a friend who owns a law firm**.
 - **Next step: build an Arabic demo for next week**, to run for him + his law-firm friend.
@@ -141,6 +151,19 @@ A Reddit prospect, **Infamous_Delivery476 ("Tarek", based in Morocco)**, saw the
 **Open questions his email must answer:** the goal (lead-qualify / delivery-confirm / survey / follow-up), the **volume** (calls per campaign × length × frequency — this sets the price), **who** he's calling (his own existing customers = clean; cold strangers = outbound-calling regulations apply: consent, calling hours, AI disclosure — varies by country), and the **language** (Morocco may need Darija or French).
 
 ## 8. Open threads / to-dos
+**Launch gap checklist (from the Nov 3 production-readiness audit — tackle top-down):**
+- ✅ #1 Phone-number automation (buy / import / reuse + attach + map) — DONE (§3a).
+- ✅ #2 Inbound call routing (org_phone_numbers now written) — DONE (§3a).
+- ✅ #3 Billing matches pricing (plan picker + €249 setup fee + outbound add-on) — DONE (§3a).
+- ⬜ #4 Password-reset flow + confirm Supabase email verification is enforced.
+- ⬜ #5 SMS confirmations — Twilio not configured on the server (detail below).
+- ⬜ #6 Knowledge base on live calls — search_knowledge 422 (detail below).
+- ⬜ #7 Calendar friction — per-org calendar needs the customer to share it with the service account; no attendee invites on a personal Gmail (needs a Workspace domain, or keep details in the event description).
+- ⬜ #8 Outbound scheduling + calling-hours/time-zone + compliance (consent / DNC / AI disclosure) — the built outbound is immediate-launch only.
+- ⬜ #9 Deploy the frontend to Vercel (BACKEND_URL=https://lumidesk-farid.duckdns.org).
+- ⬜ #10 Rotate exposed secrets + make the GitHub repo private.
+- ⬜ #88 Booking-accuracy / ASR call-quality bug (detail below).
+
 - **Riyadh (top priority):** pick the voice (prospect validates) → paste the prompt → set the agent's voice → run the Arabic test scenarios with a native speaker → fix any awkward wording → demo to him + his law-firm friend next week.
 - **Waitlist emails** (early-access, "20% off for life") — drafted; I send them from Outlook.
 - **Co-founder email** to zakikhan@outlook.com (a Reddit contact with startup-scaling experience) — drafted.
