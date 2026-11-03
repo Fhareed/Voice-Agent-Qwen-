@@ -170,6 +170,39 @@ class OrgCreate(BaseModel):
     name: str
 
 
+class ForgotIn(BaseModel):
+    email: str
+
+
+@app.post("/auth/forgot")
+def auth_forgot(body: ForgotIn):
+    """Send a password-reset email. Always ok (never reveals if the email exists)."""
+    from auth import send_password_reset
+
+    redirect = (os.getenv("PUBLIC_APP_URL") or "http://localhost:3000").rstrip("/") + "/reset"
+    send_password_reset(body.email, redirect)
+    return {"ok": True}
+
+
+class ResetIn(BaseModel):
+    access_token: str
+    password: str
+
+
+@app.post("/auth/reset")
+def auth_reset(body: ResetIn):
+    """Set a new password using the recovery session access_token."""
+    from auth import AuthResetError, complete_password_reset
+
+    if len(body.password or "") < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    try:
+        complete_password_reset(body.access_token, body.password)
+    except AuthResetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
 @app.post("/orgs")
 def create_org_endpoint(body: OrgCreate, user: dict = Depends(get_current_user)):
     """Create an organization; the logged-in user becomes its owner."""

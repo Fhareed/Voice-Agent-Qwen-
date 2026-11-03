@@ -78,6 +78,9 @@ export default function LoginPage() {
           <input type="email" autoComplete="email" className={`${FIELD} mb-4`} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" required />
           <label className="mb-1.5 block font-display text-[13px] font-bold text-ink">Password</label>
           <input type="password" autoComplete="current-password" className={`${FIELD} mb-4`} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+          <div className="mb-4 -mt-1 text-right">
+            <Link href="/forgot" className="font-sans text-[13px] font-semibold text-ink/70 underline underline-offset-2 hover:text-ink">Forgot password?</Link>
+          </div>
           {error && <p className="mb-3 font-sans text-[13px] font-semibold text-flame">{error}</p>}
           <PillButton type="submit" variant="fill" disabled={loading} className="w-full">
             {loading ? "Logging in…" : "Log in"}

@@ -83,3 +83,64 @@ def get_current_user(
             detail=f"Invalid or expired token: {e}",
         ) from e
     return {"id": claims.get("sub"), "email": claims.get("email")}
+
+
+class AuthResetError(RuntimeError):
+    """Raised when a password-reset step fails (bad or expired link, etc.)."""
+
+
+def send_password_reset(email: str, redirect_to: str | None = None) -> None:
+    """Email a password-reset link. Uses GoTrue's /recover with NO PKCE challenge, so
+    the emailed link returns the session in the URL fragment (#access_token=...) that the
+    /reset page reads client-side. This works on Supabase's free plan with the default
+    email template (no template editing needed). Never reveals whether the email exists.
+    """
+    import httpx
+
+    email = (email or "").strip()
+    if not email:
+        return
+    url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not (url and key):
+        return
+    params = {"redirect_to": redirect_to} if redirect_to else {}
+    try:
+        httpx.post(
+            f"{url}/auth/v1/recover",
+            params=params,
+            headers={"apikey": key, "Content-Type": "application/json"},
+            json={"email": email},
+            timeout=20,
+        )
+    except Exception:
+        # Swallow errors so we never leak whether the email exists.
+        pass
+
+
+def complete_password_reset(access_token: str, new_password: str) -> None:
+    """Set a new password using the recovery session access_token (from the reset link's
+    URL fragment)."""
+    import httpx
+
+    url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not (url and key):
+        raise AuthResetError("Auth is not configured.")
+    if not (access_token or "").strip():
+        raise AuthResetError("That reset link is invalid or has expired - request a new one.")
+    try:
+        u = httpx.put(
+            f"{url}/auth/v1/user",
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {access_token.strip()}",
+                "Content-Type": "application/json",
+            },
+            json={"password": new_password},
+            timeout=20,
+        )
+    except httpx.HTTPError as e:
+        raise AuthResetError(f"Couldn't set the new password: {e}") from e
+    if u.status_code >= 300:
+        raise AuthResetError("That reset link is invalid or has expired - request a new one.")
