@@ -259,6 +259,10 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
             "retell_llm_id": llm_id,
             "retell_agent_id": agent_id,
             "retell_voice_id": voice,
+            # An org with a live agent is past onboarding — mark it so every
+            # provision path (checkout, /provision/me retry, admin) agrees and
+            # the dashboard gate never loops.
+            "onboarded": True,
         })
     except Exception:
         pass

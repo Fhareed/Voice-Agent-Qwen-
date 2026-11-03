@@ -93,6 +93,8 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
     stripe = _stripe()
     app_url = _app_url()
     settings = settings_store.get_settings(org_id)
+    if settings.get("stripe_subscription_id"):
+        raise BillingError("You already have an active subscription — manage it from your dashboard.")
     plan = (plan or "pro").lower()
 
     line_items = [{"price": _plan_price_id(plan), "quantity": 1}]
@@ -127,11 +129,9 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
     return session.url
 
 
-def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> str | None:
-    """Mark the org paid, record the plan + setup-fee-paid, provision agent (+ number)."""
-    settings = settings_store.get_settings(org_id)
+def _record_payment(org_id: str, customer, subscription, plan=None) -> None:
+    """Record the payment on the org (paid + setup-fee-paid + Stripe ids). Never provisions."""
     patch = {
-        "onboarded": True,
         "paid": True,
         "setup_fee_paid": True,
         "stripe_customer_id": customer,
@@ -141,14 +141,27 @@ def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> 
         patch["plan"] = plan
     settings_store.save_settings(org_id, patch)
 
+
+def _provision_org_if_needed(org_id: str) -> str | None:
+    """Provision the org's Retell agent once (idempotent). Returns the agent_id or None."""
+    settings = settings_store.get_settings(org_id)  # re-read fresh: skip if already provisioned
     agent_id = settings.get("retell_agent_id")
-    if not agent_id:
-        name = settings.get("business_name") or ""
-        try:
-            result = retell_provision.provision_org(org_id, settings, name)
-            agent_id = result.get("agent_id")
-        except retell_provision.ProvisionError:
-            agent_id = None  # payment succeeded; provisioning can be retried
+    if agent_id:
+        return agent_id
+    name = settings.get("business_name") or ""
+    try:
+        result = retell_provision.provision_org(org_id, settings, name)
+        agent_id = result.get("agent_id")
+    except retell_provision.ProvisionError:
+        return None  # payment already recorded; provisioning can be retried
+    settings_store.save_settings(org_id, {"onboarded": True})
+    return agent_id
+
+
+def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> str | None:
+    """Mark the org paid, record the plan + setup-fee-paid, provision agent (+ number)."""
+    _record_payment(org_id, customer, subscription, plan=plan)
+    agent_id = _provision_org_if_needed(org_id)
 
     # Give the business a real phone line + bind the agent. Opt-in via env so it
     # never fires unexpectedly in dev/test; US/CA numbers only (EU customers

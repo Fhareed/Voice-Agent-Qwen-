@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import time
@@ -528,6 +529,31 @@ def patch_settings_endpoint(body: dict, ctx: dict = Depends(require_org_member))
     return {"settings": settings_store.save_settings(ctx["org_id"], body)}
 
 
+@app.get("/setup/status")
+def setup_status_endpoint(ctx: dict = Depends(require_org_member)):
+    """Report the org's real readiness (paid, provisioned, has a number)."""
+    import org_numbers_store
+
+    org_id = ctx["org_id"]
+    settings = settings_store.get_settings(org_id)
+    try:
+        has_number = bool(org_numbers_store.primary_number(org_id))
+    except Exception:
+        has_number = False
+    # Also count a number wired straight into settings (manual/SIP import), so an
+    # org whose number isn't in org_phone_numbers doesn't show a false "no number".
+    has_number = has_number or bool(settings.get("retell_phone_number"))
+    has_agent = bool(settings.get("retell_agent_id"))
+    return {
+        "paid": bool(settings.get("paid")),
+        "onboarded": bool(settings.get("onboarded")),
+        "has_agent": has_agent,
+        "has_number": has_number,
+        "ready": has_agent and has_number,
+        "plan": settings.get("plan"),
+    }
+
+
 # ── Admin (founder-only): onboarding cockpit ──────────────────────
 # Lists every org with the values needed to wire it into Retell by hand.
 # Gated by ADMIN_EMAILS (comma-separated) in the environment: the logged-in
@@ -727,6 +753,86 @@ def serve_dashboard():
     with open("web/dashboard.html", "r", encoding="utf-8") as f:
         return f.read()
 
+
+# ── Polished UI pages (the redesigned Calls dashboard + Bookings calendar) ──
+# These render LIVE data: the page is served with this org's real calls and
+# bookings injected as `window.__DATA__`, which the page's JS renders. If the
+# database is unreachable or empty, the page falls back to a friendly empty
+# state instead of erroring.
+#
+# Single-tenant owner view: the org shown is LUMIDESK_UI_ORG_ID (or
+# RETELL_DEFAULT_ORG_ID), else the first organization in the database. These
+# pages are NOT behind a login yet — fine for running locally, but gate them
+# behind auth before exposing this server publicly.
+def _resolve_ui_org_id():
+    oid = os.getenv("LUMIDESK_UI_ORG_ID") or os.getenv("RETELL_DEFAULT_ORG_ID")
+    if oid:
+        return oid
+    try:
+        from sqlalchemy import text
+
+        from db import get_engine
+        with get_engine().connect() as conn:
+            row = (
+                conn.execute(
+                    text("select id from organizations order by created_at limit 1")
+                )
+                .mappings()
+                .first()
+            )
+        return str(row["id"]) if row else None
+    except Exception as e:
+        print(f"⚠️  could not resolve a default org for the UI pages: {e}")
+        return None
+
+
+def _ui_org_meta(org_id: str) -> dict:
+    try:
+        from sqlalchemy import text
+
+        from db import get_engine
+        with get_engine().connect() as conn:
+            row = (
+                conn.execute(
+                    text("select name from organizations where id = :id"),
+                    {"id": org_id},
+                )
+                .mappings()
+                .first()
+            )
+        return {"id": org_id, "name": row["name"] if row else None}
+    except Exception:
+        return {"id": org_id, "name": None}
+
+
+def _render_ui(path: str) -> str:
+    """Serve a /ui page with this org's live calls + bookings injected."""
+    with open(path, "r", encoding="utf-8") as f:
+        html = f.read()
+    data = {"calls": [], "bookings": [], "org": {}, "generated_at": None}
+    try:
+        org_id = _resolve_ui_org_id()
+        if org_id:
+            data["calls"] = call_logs.list_calls(org_id)
+            data["bookings"] = bookings_store.list_bookings(org_id)
+            data["org"] = _ui_org_meta(org_id)
+        data["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception as e:
+        # Never let a data hiccup take the page down — render the empty state.
+        print(f"⚠️  /ui live data unavailable, showing empty state: {e}")
+    payload = json.dumps(data, default=str).replace("</", "<\\/")
+    script = f"<script>window.__DATA__ = {payload};</script>"
+    return html.replace("<!--__LUMIDESK_DATA__-->", script)
+
+
+@app.get("/ui/dashboard", response_class=HTMLResponse)
+def serve_ui_dashboard():
+    return _render_ui("web/ui/dashboard.html")
+
+
+@app.get("/ui/bookings", response_class=HTMLResponse)
+def serve_ui_bookings():
+    return _render_ui("web/ui/bookings.html")
 
 
 class ScrapeIn(BaseModel):

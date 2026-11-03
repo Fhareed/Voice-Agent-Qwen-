@@ -109,7 +109,13 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) {
-        setError(data.error || "Couldn't start checkout. Try again.");
+        const msg = typeof data.error === "string" ? data.error : "";
+        // Already paying? Don't send them to Checkout again — go straight to the app.
+        if (!res.ok && /subscription/i.test(msg) && /active|existing|already/i.test(msg)) {
+          router.push("/app");
+          return;
+        }
+        setError(msg || "Couldn't start checkout. Try again.");
         setPhase("form");
         return;
       }

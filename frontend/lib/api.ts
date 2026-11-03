@@ -66,6 +66,20 @@ export async function fetchSettings(session: Session): Promise<Settings> {
   return data.settings ?? {};
 }
 
+// ── Setup status (per org) ─────────────────────────────────────────
+export type SetupStatus = {
+  paid: boolean;
+  onboarded: boolean;
+  has_agent: boolean;
+  has_number: boolean;
+  ready: boolean;
+  plan: string | null;
+};
+
+export async function fetchSetupStatus(session: Session): Promise<SetupStatus> {
+  return backendGet<SetupStatus>("/setup/status", session);
+}
+
 // ── Knowledge base (per org) ───────────────────────────────────────
 export interface KbSource {
   kind: string; // "file" | "website" | "text"

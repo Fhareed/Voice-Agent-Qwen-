@@ -105,17 +105,39 @@ export default function DashboardView({
   bookings,
   orgName,
   loadError,
+  ready,
+  hasAgent,
+  hasNumber,
 }: {
   calls: Call[];
   bookings: Booking[];
   orgName?: string | null;
   loadError?: boolean;
+  ready?: boolean;
+  hasAgent?: boolean;
+  hasNumber?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [selected, setSelected] = useState<Call | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [setupBusy, setSetupBusy] = useState(false);
+
+  async function finishSetup() {
+    setSetupBusy(true);
+    try {
+      await fetch("/api/onboarding/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      router.refresh();
+    } catch {
+      // Leave the banner up so the owner can try again.
+    } finally {
+      setSetupBusy(false);
+    }
+  }
 
   async function changeStatus(next: "resolved" | "unresolved") {
     if (!selected) return;
@@ -280,6 +302,37 @@ export default function DashboardView({
     <div className="panel" ref={rootRef}>
       <Sidebar active="calls" orgName={orgName} />
       <main className="content">
+        {ready === false && hasAgent === false && (
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#F5D6C6] bg-[#FDEFE7] px-5 py-4 shadow-[0_10px_28px_rgba(23,23,23,0.05)] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-display text-[15px] font-bold text-[#161616]">We&apos;re still finishing your receptionist setup.</div>
+              <div className="mt-0.5 text-[13.5px] text-[#6B6B70]">It can&apos;t take calls until setup finishes. This usually only takes a moment.</div>
+            </div>
+            <button
+              type="button"
+              onClick={finishSetup}
+              disabled={setupBusy}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-cobalt px-5 py-2.5 font-display text-[13.5px] font-bold text-white disabled:opacity-60"
+            >
+              {setupBusy && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+              {setupBusy ? "Finishing…" : "Finish setup"}
+            </button>
+          </div>
+        )}
+        {ready === false && hasAgent !== false && hasNumber === false && (
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#F5D6C6] bg-[#FDEFE7] px-5 py-4 shadow-[0_10px_28px_rgba(23,23,23,0.05)] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-display text-[15px] font-bold text-[#161616]">Your receptionist doesn&apos;t have a phone number yet — calls can&apos;t reach you until you add one.</div>
+              <div className="mt-0.5 text-[13.5px] text-[#6B6B70]">Add a number so callers can get through to your AI receptionist.</div>
+            </div>
+            <a
+              href="/app/numbers"
+              className="inline-block shrink-0 rounded-full bg-cobalt px-5 py-2.5 text-center font-display text-[13.5px] font-bold text-white"
+            >
+              Set up your number
+            </a>
+          </div>
+        )}
         <div className="top">
           <div className="greet">
             <h1>{d.greet}</h1>
@@ -290,6 +343,8 @@ export default function DashboardView({
                 </>
               ) : loadError ? (
                 "Couldn't reach the backend just now — showing an empty view."
+              ) : ready === false ? (
+                "We're finishing your receptionist setup — calls will appear here once it's ready."
               ) : (
                 "Your receptionist is live. When calls come in, they appear here."
               )}
