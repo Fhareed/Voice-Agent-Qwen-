@@ -144,3 +144,37 @@ def complete_password_reset(access_token: str, new_password: str) -> None:
         raise AuthResetError(f"Couldn't set the new password: {e}") from e
     if u.status_code >= 300:
         raise AuthResetError("That reset link is invalid or has expired - request a new one.")
+
+
+def refresh_session(refresh_token: str) -> dict:
+    """Exchange a refresh token for a fresh session via Supabase GoTrue, so a
+    logged-in dashboard doesn't silently die ~1h in when the access token expires."""
+    import httpx
+
+    url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not (url and key):
+        raise RuntimeError("Auth is not configured.")
+    token = (refresh_token or "").strip()
+    if not token:
+        raise RuntimeError("Missing refresh token.")
+    try:
+        r = httpx.post(
+            f"{url}/auth/v1/token",
+            params={"grant_type": "refresh_token"},
+            headers={"apikey": key, "Content-Type": "application/json"},
+            json={"refresh_token": token},
+            timeout=10,
+        )
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"Couldn't refresh the session: {e}") from e
+    if r.status_code >= 300:
+        raise RuntimeError("That session has expired - please sign in again.")
+    data = r.json()
+    if not data.get("access_token"):
+        raise RuntimeError("That session has expired - please sign in again.")
+    return {
+        "access_token": data["access_token"],
+        "refresh_token": data.get("refresh_token"),
+        "expires_in": data.get("expires_in"),
+    }

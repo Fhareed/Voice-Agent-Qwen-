@@ -199,7 +199,25 @@ def auth_login(creds: Credentials):
     session = getattr(res, "session", None)
     if not session:
         return JSONResponse({"error": "Login failed — is the email confirmed?"}, status_code=401)
-    return {"access_token": session.access_token, "token_type": "bearer"}
+    return {
+        "access_token": session.access_token,
+        "refresh_token": getattr(session, "refresh_token", None),
+        "expires_in": getattr(session, "expires_in", None),
+        "token_type": "bearer",
+    }
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str
+
+
+@app.post("/auth/refresh")
+def auth_refresh(body: RefreshIn):
+    from auth import refresh_session
+    try:
+        return refresh_session(body.refresh_token)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=401)
 
 
 @app.get("/auth/me")

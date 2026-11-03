@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { BACKEND_URL } from "@/lib/api";
 
 const secure = process.env.NODE_ENV === "production";
-const MAX_AGE = 60 * 60 * 8;
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (middleware keeps the access token fresh)
 
 export async function POST(req: Request) {
   let body: { email?: string; password?: string; business?: string };
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   // 2) Try to log in immediately. If the project requires email confirmation,
   //    this fails and we tell the user to confirm first.
   let token: string | undefined;
+  let refresh: string | undefined;
   try {
     const li = await fetch(`${BACKEND_URL}/auth/login`, {
       method: "POST",
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
     if (li.ok) {
       const ld = await li.json();
       token = ld.access_token;
+      refresh = ld.refresh_token;
     }
   } catch {
     /* fall through to confirmation path */
@@ -75,10 +77,13 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("ld_token", token, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: MAX_AGE });
+  res.cookies.set("ld_token", token, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
+  if (refresh) {
+    res.cookies.set("ld_refresh", refresh, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
+  }
   if (orgId) {
-    res.cookies.set("ld_org", orgId, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: MAX_AGE });
-    res.cookies.set("ld_org_name", orgName, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: MAX_AGE });
+    res.cookies.set("ld_org", orgId, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
+    res.cookies.set("ld_org_name", orgName, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: SESSION_MAX_AGE });
   }
   return res;
 }

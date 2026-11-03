@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { BACKEND_URL } from "@/lib/api";
 
 const secure = process.env.NODE_ENV === "production";
-const MAX_AGE = 60 * 60 * 8;
+// Match the session cookies (ld_token/ld_refresh) so the org cookie never expires
+// out from under a still-live, auto-refreshed session — otherwise /app would show
+// "name your business" again and the user would create a duplicate org.
+const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 // Create an organization for the logged-in user and remember it as the active org.
 export async function POST(req: Request) {

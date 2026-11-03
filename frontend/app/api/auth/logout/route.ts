@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 function clear(res: NextResponse) {
-  for (const name of ["ld_token", "ld_org", "ld_org_name"]) {
+  for (const name of ["ld_token", "ld_refresh", "ld_org", "ld_org_name"]) {
     res.cookies.set(name, "", { path: "/", maxAge: 0 });
   }
   return res;

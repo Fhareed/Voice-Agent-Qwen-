@@ -25,7 +25,7 @@ export default function NeedOrg() {
         setError(data.error || "Could not create your workspace.");
         return;
       }
-      router.replace("/");
+      router.replace("/app");
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
