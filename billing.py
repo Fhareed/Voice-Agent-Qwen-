@@ -95,17 +95,8 @@ def _mark_paid_and_provision(org_id: str, customer, subscription) -> str | None:
     _auto = (os.getenv("RETELL_AUTO_BUY_NUMBER") or "").strip().lower()
     if agent_id and _auto not in ("", "0", "false", "no"):
         try:
-            import org_numbers_store
-            import retell_numbers
-            fresh = settings_store.get_settings(org_id)
-            if not fresh.get("retell_phone_number"):
-                num = retell_numbers.buy_number(
-                    agent_id, fresh.get("retell_outbound_agent_id"),
-                    country_code=os.getenv("RETELL_NUMBER_COUNTRY", "US"),
-                    nickname=fresh.get("business_name") or "",
-                )
-                org_numbers_store.register_number(org_id, num, label=fresh.get("business_name") or "")
-                settings_store.save_settings(org_id, {"retell_phone_number": num})
+            import numbers_api
+            numbers_api.ensure_number_for_org(org_id)  # reuse existing number, else buy; maps it
         except Exception as e:
             print(f"[billing] auto number provisioning skipped: {e}")
     return agent_id

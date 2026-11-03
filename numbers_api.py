@@ -9,6 +9,8 @@ bind its agent to it — automating what used to be manual Retell-console work.
 
 Secured by require_org_member, like the rest of the dashboard API.
 """
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -24,6 +26,28 @@ def _agents_for(org_id: str):
     """(inbound_agent_id, outbound_agent_id, settings) for this org."""
     s = settings_store.get_settings(org_id)
     return s.get("retell_agent_id"), s.get("retell_outbound_agent_id"), s
+
+
+def ensure_number_for_org(org_id: str) -> dict:
+    """Reuse the agent's existing Retell number if it has one, else buy a US/CA one;
+    then map it to the org. Idempotent — safe to call on every provision."""
+    s = settings_store.get_settings(org_id)
+    inbound = s.get("retell_agent_id")
+    outbound = s.get("retell_outbound_agent_id")
+    name = s.get("business_name") or ""
+    if not inbound:
+        return {"ok": False, "reason": "no_agent"}
+    num = s.get("retell_phone_number") or retell_numbers.find_number_for_agent(inbound)
+    reused = bool(num)
+    if not num:
+        num = retell_numbers.buy_number(
+            inbound, outbound,
+            country_code=os.getenv("RETELL_NUMBER_COUNTRY", "US"),
+            nickname=name,
+        )
+    org_numbers_store.register_number(org_id, num, label=name or "Primary line")
+    settings_store.save_settings(org_id, {"retell_phone_number": num})
+    return {"ok": True, "phone_number": num, "reused": reused}
 
 
 class BuyIn(BaseModel):
@@ -47,6 +71,21 @@ class AssignIn(BaseModel):
 @router.get("")
 def list_numbers(ctx: dict = Depends(require_org_member)):
     return {"numbers": org_numbers_store.list_for_org(ctx["org_id"])}
+
+
+@router.post("/provision")
+def provision(ctx: dict = Depends(require_org_member)):
+    """Smart one-click: reuse the org agent's existing number, or buy one; then map it."""
+    inbound, _out, _s = _agents_for(ctx["org_id"])
+    if not inbound:
+        raise HTTPException(status_code=400, detail="Provision your receptionist agent first.")
+    try:
+        res = ensure_number_for_org(ctx["org_id"])
+    except retell_numbers.NumberError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail="Couldn't set up a number (no agent found).")
+    return res
 
 
 @router.post("/buy")

@@ -131,3 +131,16 @@ def release_number(phone_number: str) -> bool:
     """Release (delete) a Retell-managed number — stops the recurring monthly fee."""
     _req("DELETE", f"/delete-phone-number/{phone_number}")
     return True
+
+
+def find_number_for_agent(inbound_agent_id: str):
+    """Return the E.164 of a Retell number already bound (inbound) to this agent, or
+    None. Lets provisioning reuse a number the business already has instead of buying
+    a duplicate."""
+    if not inbound_agent_id:
+        return None
+    for n in list_numbers():
+        for a in (n.get("inbound_agents") or []):
+            if a.get("agent_id") == inbound_agent_id:
+                return n.get("phone_number")
+    return None

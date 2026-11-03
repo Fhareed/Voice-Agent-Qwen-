@@ -16,9 +16,15 @@ Clean up afterwards (stops the ~$2/mo charge for the test number):
 import os
 import sys
 
-from dotenv import load_dotenv
+# Allow running as `python scripts/test_number_provision.py` from the repo root:
+# put the repo root (this file's parent's parent) on the import path.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
-load_dotenv()
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(os.path.join(ROOT, ".env"))
 
 import org_numbers_store  # noqa: E402
 import retell_numbers  # noqa: E402
