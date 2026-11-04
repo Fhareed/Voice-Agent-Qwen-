@@ -1,13 +1,20 @@
 """Google Calendar integration for the booking tools.
 
-Design for the MVP / first customer: ONE calendar, configured via env. The
-business shares their Google Calendar with a Google service account, and we read
-free/busy and create events on it. This is the simplest thing that reaches a
-REAL calendar with no per-user OAuth dance.
+Per-org calendars (multi-tenant): each business connects its OWN Google Calendar
+from the dashboard — it shares that calendar with our Google service account and
+pastes its Calendar ID, which we store on the org (settings.google_calendar_id).
+Every read (free/busy) and write (event create) is scoped to that org's own
+calendar via _calendar_id_for(org_id), so one business can never see or touch
+another's calendar. No per-user OAuth dance is needed; calendar sharing does it.
 
-Later (multi-customer): store a per-org Google refresh token in the database and
-pick the calendar per org_id. The rest of the tools layer already passes org_id,
-so only this file changes.
+The env GOOGLE_CALENDAR_ID is only a shared fallback for the DEMO org (or when
+GOOGLE_SHARED_CALENDAR_FALLBACK is on). A real customer that hasn't connected its
+own calendar gets no calendar (standard slots + dashboard-only bookings) rather
+than leaking onto the shared one — see _calendar_id_for.
+
+A future even-smoother onboarding could use per-org Google OAuth refresh tokens
+instead of calendar-sharing; the tools layer already passes org_id, so only this
+file would change.
 
 Nothing here imports the Google libraries at module load, so the app still boots
 if they aren't installed yet or the calendar isn't configured. Call is_configured()
@@ -93,7 +100,20 @@ def service_account_email() -> str | None:
 
 
 def _calendar_id_for(org_id=None):
-    """The calendar id to use: this org's own connected calendar, else the env default."""
+    """The calendar id to use for THIS org — isolated per business.
+
+    Priority:
+      1. The org's OWN connected calendar (settings.google_calendar_id). Each
+         business connects its own via the dashboard, so this is always isolated
+         to that business — A can never see or write B's calendar.
+      2. The shared env GOOGLE_CALENDAR_ID, but ONLY for the demo/default org (or
+         when GOOGLE_SHARED_CALENDAR_FALLBACK is explicitly on). A REAL customer
+         that hasn't connected its own calendar yet gets None here instead of
+         silently falling back to someone else's calendar — so its bookings never
+         land on, and its availability never reflects, another business's calendar.
+         The booking still saves to the dashboard; the agent just offers standard
+         business-hour slots until that business connects its own calendar.
+    """
     if org_id:
         try:
             import settings_store
@@ -102,8 +122,17 @@ def _calendar_id_for(org_id=None):
                 return cid.strip()
         except Exception:
             pass
-    env = os.getenv("GOOGLE_CALENDAR_ID")
-    return env.strip() if env and env.strip() else None
+    env = (os.getenv("GOOGLE_CALENDAR_ID") or "").strip()
+    if not env:
+        return None
+    # Guard the shared fallback so it can't leak across tenants.
+    allow_shared = (os.getenv("GOOGLE_SHARED_CALENDAR_FALLBACK") or "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    demo_org = (os.getenv("RETELL_DEFAULT_ORG_ID") or "").strip()
+    if allow_shared or org_id is None or (demo_org and str(org_id) == demo_org):
+        return env
+    return None
 
 
 def is_configured(org_id=None) -> bool:
