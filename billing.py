@@ -18,8 +18,17 @@ Env:
   STRIPE_AUTOMATIC_TAX   optional "1" to enable Stripe Tax (EU VAT) at checkout —
                          only turn on once Stripe Tax is activated with your address.
   STRIPE_PRICE_ID        optional legacy fallback for the plan price.
+  RETELL_RELEASE_ON_CANCEL  "0" to keep a churned org's number(s) instead of
+                         releasing them on cancellation (default: release, so the
+                         recurring per-number charge on our Retell account stops).
+
+Cancellation: the webhook also handles customer.subscription.deleted (and an
+.updated that flips to canceled/unpaid) — it marks the org unpaid and releases its
+number(s) so a churned customer can't keep billing us. Enable those two events on
+the Stripe webhook endpoint alongside checkout.session.completed.
 """
 import os
+from contextlib import contextmanager
 
 import retell_provision
 import settings_store
@@ -93,6 +102,8 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
     stripe = _stripe()
     app_url = _app_url()
     settings = settings_store.get_settings(org_id)
+    if settings.get("stripe_subscription_id"):
+        raise BillingError("You already have an active subscription — manage it from your dashboard.")
     plan = (plan or "pro").lower()
 
     line_items = [{"price": _plan_price_id(plan), "quantity": 1}]
@@ -115,7 +126,9 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
         "cancel_url": f"{app_url}/app/onboarding?canceled=1",
         "client_reference_id": org_id,
         "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()},
-        "subscription_data": {"metadata": {"org_id": org_id, "plan": plan}},
+        "subscription_data": {
+            "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()}
+        },
     }
     if email:
         kwargs["customer_email"] = email
@@ -127,11 +140,9 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
     return session.url
 
 
-def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> str | None:
-    """Mark the org paid, record the plan + setup-fee-paid, provision agent (+ number)."""
-    settings = settings_store.get_settings(org_id)
+def _record_payment(org_id: str, customer, subscription, plan=None, outbound=None) -> None:
+    """Record the payment on the org (paid + setup-fee-paid + Stripe ids). Never provisions."""
     patch = {
-        "onboarded": True,
         "paid": True,
         "setup_fee_paid": True,
         "stripe_customer_id": customer,
@@ -139,16 +150,114 @@ def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> 
     }
     if plan:
         patch["plan"] = plan
+    if outbound is not None:
+        patch["outbound"] = bool(outbound)
     settings_store.save_settings(org_id, patch)
 
-    agent_id = settings.get("retell_agent_id")
-    if not agent_id:
+
+def _org_by_subscription(subscription_id: str) -> str | None:
+    """Find the org that owns this Stripe subscription (for cancellation events,
+    whose payload may not carry our metadata). None if not found."""
+    if not subscription_id:
+        return None
+    try:
+        from sqlalchemy import text
+
+        from db import get_engine
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                text("select org_id from org_settings "
+                     "where data->>'stripe_subscription_id' = :s limit 1"),
+                {"s": subscription_id},
+            ).scalar()
+        return str(row) if row else None
+    except Exception:
+        return None
+
+
+def _deactivate_org(org_id: str, reason: str = "canceled") -> None:
+    """Revoke a churned org: mark it unpaid and (unless disabled) release its phone
+    number(s) so Retell stops billing US on them. The agent is left in place so a
+    re-subscribe reactivates instantly; clearing stripe_subscription_id lets the
+    customer check out again. Billable spend (numbers, minutes) stops either way."""
+    if not org_id:
+        return
+    # 1) Flag the org unpaid — our number-buy guardrail keys off exactly this, and
+    #    the dashboard can show "subscription ended".
+    settings_store.save_settings(org_id, {
+        "paid": False,
+        "subscription_status": reason,
+        "stripe_subscription_id": "",   # allow a fresh checkout later
+    })
+
+    # 2) Stop the recurring number charges on our account (opt-out via env).
+    _release = (os.getenv("RETELL_RELEASE_ON_CANCEL") or "1").strip().lower()
+    if _release in ("", "0", "false", "no"):
+        return
+    try:
+        import org_numbers_store
+        import retell_numbers
+        for n in org_numbers_store.list_for_org(org_id):
+            num = n.get("phone_e164")
+            if not num:
+                continue
+            try:
+                retell_numbers.release_number(num)  # Retell DELETE — stops the $2/mo
+            except Exception as e:
+                print(f"[billing] release {num} on cancel failed (continuing): {e}")
+            org_numbers_store.unregister_number(org_id, num)
+        settings_store.save_settings(org_id, {"retell_phone_number": ""})
+    except Exception as e:
+        print(f"[billing] number release on cancel skipped for {org_id}: {e}")
+
+
+@contextmanager
+def _org_provision_lock(org_id: str):
+    """Serialize provisioning per org via a pg advisory lock. Degrades to a
+    no-op if the lock can't be taken, so provisioning never hard-fails on it."""
+    from sqlalchemy import text
+
+    from db import get_engine
+    conn = None
+    try:
+        conn = get_engine().connect()
+        conn.execute(text("select pg_advisory_lock(hashtext(:k))"), {"k": f"provision:{org_id}"})
+        conn.commit()  # ensure the lock statement is applied on this connection
+    except Exception:
+        conn = None  # couldn't lock — fall through unlocked rather than block
+    try:
+        yield
+    finally:
+        if conn is not None:
+            try:
+                conn.execute(text("select pg_advisory_unlock(hashtext(:k))"), {"k": f"provision:{org_id}"})
+                conn.commit()
+            except Exception:
+                pass
+            conn.close()
+
+
+def _provision_org_if_needed(org_id: str) -> str | None:
+    """Provision the org's Retell agent once (idempotent). Returns the agent_id or None."""
+    with _org_provision_lock(org_id):  # serialize check-and-provision across concurrent confirms
+        settings = settings_store.get_settings(org_id)  # re-read fresh: skip if already provisioned
+        agent_id = settings.get("retell_agent_id")
+        if agent_id:
+            return agent_id
         name = settings.get("business_name") or ""
         try:
             result = retell_provision.provision_org(org_id, settings, name)
             agent_id = result.get("agent_id")
         except retell_provision.ProvisionError:
-            agent_id = None  # payment succeeded; provisioning can be retried
+            return None  # payment already recorded; provisioning can be retried
+        settings_store.save_settings(org_id, {"onboarded": True})
+        return agent_id
+
+
+def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None, outbound=None) -> str | None:
+    """Mark the org paid, record the plan + setup-fee-paid, provision agent (+ number)."""
+    _record_payment(org_id, customer, subscription, plan=plan, outbound=outbound)
+    agent_id = _provision_org_if_needed(org_id)
 
     # Give the business a real phone line + bind the agent. Opt-in via env so it
     # never fires unexpectedly in dev/test; US/CA numbers only (EU customers
@@ -157,7 +266,8 @@ def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> 
     if agent_id and _auto not in ("", "0", "false", "no"):
         try:
             import numbers_api
-            numbers_api.ensure_number_for_org(org_id)  # reuse existing number, else buy; maps it
+            with _org_provision_lock(org_id):  # serialize so two confirms can't double-buy
+                numbers_api.ensure_number_for_org(org_id)  # reuse existing number, else buy; maps it
         except Exception as e:
             print(f"[billing] auto number provisioning skipped: {e}")
     return agent_id
@@ -170,12 +280,15 @@ def confirm_and_provision(org_id: str, session_id: str) -> dict:
     meta = _sv(session, "metadata") or {}
     meta_org = _sv(meta, "org_id")
     plan = _sv(meta, "plan")
+    outbound = _sv(meta, "outbound")  # "true"/"false" string from checkout metadata
     if meta_org and meta_org != org_id:
         raise BillingError("This payment doesn't belong to your account.")
-    if _sv(session, "payment_status") != "paid" and _sv(session, "status") != "complete":
+    paid = _sv(session, "payment_status") in ("paid", "no_payment_required")
+    if not paid:
         raise BillingError("Payment hasn't completed yet.")
     agent_id = _mark_paid_and_provision(
-        org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
+        org_id, _sv(session, "customer"), _sv(session, "subscription"),
+        plan=plan, outbound=(outbound == "true"),
     )
     return {"paid": True, "agent_id": agent_id, "plan": plan}
 
@@ -192,8 +305,37 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
         meta = _sv(session, "metadata") or {}
         org_id = _sv(meta, "org_id")
         plan = _sv(meta, "plan")
-        if org_id:
+        outbound = _sv(meta, "outbound")  # "true"/"false" string from checkout metadata
+        # async_payment_succeeded is inherently paid; for the completed event a
+        # session can be "complete" before funds settle (delayed EU methods), so
+        # require an actually-paid status before provisioning.
+        paid = (
+            event["type"] == "checkout.session.async_payment_succeeded"
+            or _sv(session, "payment_status") in ("paid", "no_payment_required")
+        )
+        if org_id and paid:
             _mark_paid_and_provision(
-                org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
+                org_id, _sv(session, "customer"), _sv(session, "subscription"),
+                plan=plan, outbound=(outbound == "true"),
             )
+
+    # ── subscription ended / lapsed → revoke so a churned customer stops costing us ──
+    elif event["type"] == "customer.subscription.deleted":
+        sub = event["data"]["object"]
+        meta = _sv(sub, "metadata") or {}
+        org_id = _sv(meta, "org_id") or _org_by_subscription(_sv(sub, "id"))
+        if org_id:
+            _deactivate_org(org_id, reason="canceled")
+
+    elif event["type"] == "customer.subscription.updated":
+        # Catch a subscription that flipped to a non-paying state without a full
+        # delete event (e.g. unpaid after repeated failed charges, or canceled now).
+        sub = event["data"]["object"]
+        status = (_sv(sub, "status") or "").lower()
+        if status in ("canceled", "unpaid"):
+            meta = _sv(sub, "metadata") or {}
+            org_id = _sv(meta, "org_id") or _org_by_subscription(_sv(sub, "id"))
+            if org_id:
+                _deactivate_org(org_id, reason=status)
+
     return {"received": True}
