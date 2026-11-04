@@ -71,3 +71,22 @@ def delete_by_phone(phone_e164: str) -> bool:
             {"p": (phone_e164 or "").strip()},
         )
         return res.rowcount > 0
+
+
+def count_for_org(org_id: str) -> int:
+    """How many numbers this org currently has mapped. Backs the per-org quota so a
+    customer can't run up our Retell bill by buying many numbers."""
+    with get_engine().connect() as conn:
+        n = conn.execute(
+            text("select count(*) from org_phone_numbers where org_id = :o"),
+            {"o": org_id},
+        ).scalar()
+    return int(n or 0)
+
+
+def count_all() -> int:
+    """Total numbers mapped across EVERY org — the global account ceiling is checked
+    against this so a bug anywhere can never run our Retell card past a hard max."""
+    with get_engine().connect() as conn:
+        n = conn.execute(text("select count(*) from org_phone_numbers")).scalar()
+    return int(n or 0)

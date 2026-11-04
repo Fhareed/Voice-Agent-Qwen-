@@ -206,8 +206,8 @@ export default function NumberView({
         <div className="kbgrid">
           <div className="kbmain">
             <div className="kbcard">
-              <div className="kbhead">
-                <Icon name="i-phone" />
+              <div className="numtitle">
+                <span className="ic"><Icon name="i-phone" /></span>
                 Your number
               </div>
 
@@ -259,22 +259,23 @@ export default function NumberView({
                   </div>
                 </>
               ) : (
-                <div className="kbempty">
-                  <Icon name="i-phone" />
-                  No number yet — set one up on the right.
+                <div className="numempty">
+                  <span className="ic"><Icon name="i-phone" /></span>
+                  <b>No number yet</b>
+                  <span>Set one up on the right to start taking calls.</span>
                 </div>
               )}
             </div>
           </div>
 
           <div className="kbcard">
-            <div className="kbhead">
-              <Icon name="i-plus" />
+            <div className="numtitle">
+              <span className="ic"><Icon name="i-plus" /></span>
               Set up your number
             </div>
 
             {/* Primary, recommended for Finland/EU: keep your own number. */}
-            <div className="kbhead">
+            <div className="numsec">
               <Icon name="i-phone" />
               Keep your current number
             </div>
@@ -307,7 +308,7 @@ export default function NumberView({
                   importNumber();
                 }}
               >
-                <div className="kbhead">
+                <div className="numsec">
                   <Icon name="i-wrench" />
                   Import your own number (SIP)
                 </div>
@@ -358,8 +359,9 @@ export default function NumberView({
               </form>
             )}
 
-            {/* Secondary: buy a brand-new US/Canada number. */}
-            <div className="kbhead" style={{ marginTop: 18 }}>
+            {/* Secondary: buy a brand-new US/Canada number. Divider sets it apart
+                from the recommended "keep your number" path above. */}
+            <div className="numsec divide">
               <Icon name="i-globe" />
               Buy a new US/Canada number
             </div>
