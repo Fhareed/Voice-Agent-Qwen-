@@ -118,7 +118,9 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
         "cancel_url": f"{app_url}/app/onboarding?canceled=1",
         "client_reference_id": org_id,
         "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()},
-        "subscription_data": {"metadata": {"org_id": org_id, "plan": plan}},
+        "subscription_data": {
+            "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()}
+        },
     }
     if email:
         kwargs["customer_email"] = email
@@ -130,7 +132,7 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
     return session.url
 
 
-def _record_payment(org_id: str, customer, subscription, plan=None) -> None:
+def _record_payment(org_id: str, customer, subscription, plan=None, outbound=None) -> None:
     """Record the payment on the org (paid + setup-fee-paid + Stripe ids). Never provisions."""
     patch = {
         "paid": True,
@@ -140,6 +142,8 @@ def _record_payment(org_id: str, customer, subscription, plan=None) -> None:
     }
     if plan:
         patch["plan"] = plan
+    if outbound is not None:
+        patch["outbound"] = bool(outbound)
     settings_store.save_settings(org_id, patch)
 
 
@@ -186,9 +190,9 @@ def _provision_org_if_needed(org_id: str) -> str | None:
         return agent_id
 
 
-def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None) -> str | None:
+def _mark_paid_and_provision(org_id: str, customer, subscription, plan=None, outbound=None) -> str | None:
     """Mark the org paid, record the plan + setup-fee-paid, provision agent (+ number)."""
-    _record_payment(org_id, customer, subscription, plan=plan)
+    _record_payment(org_id, customer, subscription, plan=plan, outbound=outbound)
     agent_id = _provision_org_if_needed(org_id)
 
     # Give the business a real phone line + bind the agent. Opt-in via env so it
@@ -212,13 +216,15 @@ def confirm_and_provision(org_id: str, session_id: str) -> dict:
     meta = _sv(session, "metadata") or {}
     meta_org = _sv(meta, "org_id")
     plan = _sv(meta, "plan")
+    outbound = _sv(meta, "outbound")  # "true"/"false" string from checkout metadata
     if meta_org and meta_org != org_id:
         raise BillingError("This payment doesn't belong to your account.")
     paid = _sv(session, "payment_status") in ("paid", "no_payment_required")
     if not paid:
         raise BillingError("Payment hasn't completed yet.")
     agent_id = _mark_paid_and_provision(
-        org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
+        org_id, _sv(session, "customer"), _sv(session, "subscription"),
+        plan=plan, outbound=(outbound == "true"),
     )
     return {"paid": True, "agent_id": agent_id, "plan": plan}
 
@@ -235,6 +241,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
         meta = _sv(session, "metadata") or {}
         org_id = _sv(meta, "org_id")
         plan = _sv(meta, "plan")
+        outbound = _sv(meta, "outbound")  # "true"/"false" string from checkout metadata
         # async_payment_succeeded is inherently paid; for the completed event a
         # session can be "complete" before funds settle (delayed EU methods), so
         # require an actually-paid status before provisioning.
@@ -244,6 +251,7 @@ def handle_webhook(payload: bytes, sig_header: str) -> dict:
         )
         if org_id and paid:
             _mark_paid_and_provision(
-                org_id, _sv(session, "customer"), _sv(session, "subscription"), plan=plan
+                org_id, _sv(session, "customer"), _sv(session, "subscription"),
+                plan=plan, outbound=(outbound == "true"),
             )
     return {"received": True}

@@ -16,9 +16,27 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   function set<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function resend() {
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      setResent(res.ok);
+    } catch {
+      setResent(false);
+    } finally {
+      setResending(false);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -65,6 +83,21 @@ export default function SignupPage() {
           <div className="mt-5">
             <PillButton href="/login" variant="fill" className="w-full">Go to login</PillButton>
           </div>
+          <p className="mt-4 font-sans text-[13px] text-ink/70">
+            Didn&apos;t get it?{" "}
+            {resent ? (
+              <span className="font-bold text-ink">Sent — check your inbox.</span>
+            ) : (
+              <button
+                type="button"
+                onClick={resend}
+                disabled={resending}
+                className="font-bold text-ink underline underline-offset-2 disabled:opacity-60"
+              >
+                {resending ? "Sending…" : "Resend email"}
+              </button>
+            )}
+          </p>
         </div>
       ) : (
         <form onSubmit={submit}>

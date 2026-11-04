@@ -22,8 +22,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {
+      return NextResponse.json(
+        { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+        { status: r.status },
+      );
+    }
     if (!r.ok) {
-      return NextResponse.json({ error: data.detail || "Couldn't load the campaign." }, { status: r.status });
+      return NextResponse.json({ error: data.detail || data.error || "Couldn't load the campaign." }, { status: r.status });
     }
     return NextResponse.json(data);
   } catch {
@@ -43,8 +49,14 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {
+      return NextResponse.json(
+        { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+        { status: r.status },
+      );
+    }
     if (!r.ok) {
-      return NextResponse.json({ error: data.detail || "Couldn't delete it." }, { status: r.status });
+      return NextResponse.json({ error: data.detail || data.error || "Couldn't delete it." }, { status: r.status });
     }
     return NextResponse.json(data);
   } catch {

@@ -11,6 +11,7 @@ const FIELD =
 export default function ResetPage() {
   // undefined = still reading the URL; null = no token in URL; string = ready
   const [accessToken, setAccessToken] = useState<string | null | undefined>(undefined);
+  const [linkExpired, setLinkExpired] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [done, setDone] = useState(false);
@@ -25,7 +26,17 @@ export default function ResetPage() {
         ? window.location.hash.slice(1)
         : window.location.hash;
       const h = new URLSearchParams(raw);
-      setAccessToken(h.get("access_token"));
+      const at = h.get("access_token");
+      if (at) {
+        setAccessToken(at);
+        return;
+      }
+      // An expired or already-used link comes back as
+      // #error=access_denied&error_description=...+expired (no access_token).
+      if (h.get("error") || h.get("error_description")) {
+        setLinkExpired(true);
+      }
+      setAccessToken(null);
     } catch {
       setAccessToken(null);
     }
@@ -71,9 +82,13 @@ export default function ResetPage() {
         <p className="font-sans text-[14px] text-muted">Loading…</p>
       ) : accessToken === null ? (
         <div>
-          <h2 className="font-display text-[26px] font-bold text-ink">Reset password</h2>
+          <h2 className="font-display text-[26px] font-bold text-ink">
+            {linkExpired ? "Link expired" : "Reset password"}
+          </h2>
           <p className="mt-2 font-sans text-[14px] text-muted">
-            Open this page from the reset link in your email.{" "}
+            {linkExpired
+              ? "This reset link has expired — request a new one."
+              : "Open this page from the reset link in your email."}{" "}
             <Link href="/forgot" className="font-bold text-ink underline underline-offset-2">Request a new link.</Link>
           </p>
         </div>

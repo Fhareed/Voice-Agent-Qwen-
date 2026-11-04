@@ -12,6 +12,8 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 const URG = /urgent|emergency|burst|flood|no hot water|same.?day|leak|gas/i;
 
 type Kind = "booked" | "urgent" | "new" | "follow" | "resolved";
+type TabKey = "all" | "unres" | "booked" | "follow";
+const RECENT_CAP = 12;
 const PILL: Record<Kind, { cls: string; label: string; tag: JSX.Element }> = {
   booked: { cls: "c-booked", label: "Booked", tag: <><Icon name="i-calendar-check" />Booked</> },
   urgent: { cls: "c-urgent", label: "Urgent", tag: <>Needs a slot</> },
@@ -70,6 +72,23 @@ function classify(c: Call): Kind {
   if (URG.test(hay)) return "urgent";
   return initials(c.caller_name) ? "follow" : "new";
 }
+function toCard(c: Call, idx: number) {
+  const k = classify(c);
+  const name = c.caller_name || c.caller_phone || "Unknown caller";
+  const snip =
+    c.summary ||
+    ((c.transcript || "").split("\n").filter(Boolean)[0] || "").replace(/^(Caller|Assistant):\s*/, "") ||
+    "No summary yet.";
+  const meta = [when(c.created_at), dur(c.duration_sec), lang(c.language)].filter(Boolean).join(" · ");
+  const ini = initials(c.caller_name);
+  return { k, name, snip, meta, ini, color: AV[idx % AV.length], call: c };
+}
+function matchesTab(c: Call, tab: TabKey): boolean {
+  if (tab === "unres") return c.status !== "resolved";
+  if (tab === "booked") return c.is_booking;
+  if (tab === "follow") return c.status !== "resolved" && !c.is_booking;
+  return true;
+}
 
 const SEG: [number, number, number, number][] = [
   [44.2, 94.8, 24.3, 93.0], [46.0, 84.5, 26.7, 79.3], [49.6, 74.6, 31.5, 66.2], [54.9, 65.6, 38.5, 54.1],
@@ -118,11 +137,15 @@ export default function DashboardView({
   hasNumber?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [selected, setSelected] = useState<Call | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [setupBusy, setSetupBusy] = useState(false);
+  const [tab, setTab] = useState<TabKey>("all");
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   async function finishSetup() {
     setSetupBusy(true);
@@ -217,18 +240,6 @@ export default function DashboardView({
       };
     }
 
-    const cards = calls.slice(0, 8).map((c, idx) => {
-      const k = classify(c);
-      const name = c.caller_name || c.caller_phone || "Unknown caller";
-      const snip =
-        c.summary ||
-        ((c.transcript || "").split("\n").filter(Boolean)[0] || "").replace(/^(Caller|Assistant):\s*/, "") ||
-        "No summary yet.";
-      const meta = [when(c.created_at), dur(c.duration_sec), lang(c.language)].filter(Boolean).join(" · ");
-      const ini = initials(c.caller_name);
-      return { k, name, snip, meta, ini, color: AV[idx % AV.length], call: c };
-    });
-
     const unresolved = calls.filter((c) => c.status !== "resolved");
     const followers = unresolved.filter((c) => !c.is_booking);
     const tabs = {
@@ -266,11 +277,25 @@ export default function DashboardView({
     const sparkBooked = sparkBars(bookings.map((b) => ({ date: b.start_ts })));
 
     return {
-      greet, datePill, sub, callsToday, bookedToday, live, cards, tabs,
+      greet, datePill, sub, callsToday, bookedToday, live, tabs,
       pct, lit, gaugeFoot, follow,
       callsWk, bookWk, C, bookFrac, sparkCalls, sparkBooked,
     };
   }, [calls, bookings, orgName]);
+
+  // Filtered, searchable list of calls — the real list, not just the latest 8.
+  const q = query.trim().toLowerCase();
+  const filteredCalls = calls.filter((c) => {
+    if (!matchesTab(c, tab)) return false;
+    if (q) {
+      const hay = `${c.caller_name ?? ""} ${c.caller_phone ?? ""} ${c.summary ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const visibleCalls = expanded ? filteredCalls : filteredCalls.slice(0, RECENT_CAP);
+  const cards = visibleCalls.map(toCard);
+  const canExpand = filteredCalls.length > RECENT_CAP;
 
   // Card tilt (same feel as the approved design).
   useEffect(() => {
@@ -296,7 +321,19 @@ export default function DashboardView({
       handlers.push([card, m, l]);
     });
     return () => handlers.forEach(([c, m, l]) => { c.removeEventListener("mousemove", m); c.removeEventListener("mouseleave", l); });
-  }, [d]);
+  }, [d, tab, query, expanded]);
+
+  // ⌘K / Ctrl+K focuses the call search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <div className="panel" ref={rootRef}>
@@ -353,7 +390,12 @@ export default function DashboardView({
           <div className="tools">
             <label className="searchbox">
               <Icon name="i-search" />
-              <input placeholder="Search calls, customers…" />
+              <input
+                ref={searchRef}
+                placeholder="Search calls, customers…"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setExpanded(false); }}
+              />
               <kbd>⌘K</kbd>
             </label>
             <button className="circbtn" aria-label="Notifications">
@@ -402,22 +444,58 @@ export default function DashboardView({
           )}
 
           <div style={{ minWidth: 0 }}>
-            <div className="callshead"><h2>Recent calls</h2><span className="more">View all</span></div>
+            <div className="callshead">
+              <h2>Recent calls</h2>
+              {canExpand && (
+                <span
+                  className="more"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpanded((v) => !v)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}
+                >
+                  {expanded ? "Show less" : "View all"}
+                </span>
+              )}
+            </div>
             <div className="tabs">
-              <span className="on">All <i>{d.tabs.all}</i></span>
-              <span>Unresolved <i>{d.tabs.unres}</i></span>
-              <span>Booked <i>{d.tabs.booked}</i></span>
-              <span>Follow-up <i>{d.tabs.follow}</i></span>
+              {([
+                ["all", "All", d.tabs.all],
+                ["unres", "Unresolved", d.tabs.unres],
+                ["booked", "Booked", d.tabs.booked],
+                ["follow", "Follow-up", d.tabs.follow],
+              ] as [TabKey, string, number][]).map(([key, label, count]) => (
+                <span
+                  key={key}
+                  className={tab === key ? "on" : undefined}
+                  role="button"
+                  tabIndex={0}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => { setTab(key); setExpanded(false); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTab(key); setExpanded(false); } }}
+                >
+                  {label} <i>{count}</i>
+                </span>
+              ))}
             </div>
             <div className="calls">
-              {d.cards.length === 0 ? (
+              {cards.length === 0 ? (
                 <div className="callsempty">
                   <div className="eico"><Icon name="i-phone" /></div>
-                  <b>No calls yet</b>
-                  <span>Your AI receptionist is answering. The moment someone calls, the call — who, why, and what it booked — lands right here.</span>
+                  {calls.length === 0 ? (
+                    <>
+                      <b>No calls yet</b>
+                      <span>Your AI receptionist is answering. The moment someone calls, the call — who, why, and what it booked — lands right here.</span>
+                    </>
+                  ) : (
+                    <>
+                      <b>No matching calls</b>
+                      <span>{query.trim() ? "No calls match your search. Try different words or another tab." : "No calls in this tab yet. Switch tabs to see the rest."}</span>
+                    </>
+                  )}
                 </div>
               ) : (
-                d.cards.map((c, i) => {
+                cards.map((c, i) => {
                   const p = PILL[c.k];
                   return (
                     <div

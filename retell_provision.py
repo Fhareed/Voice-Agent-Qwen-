@@ -211,6 +211,17 @@ def _tools(base: str, secret: str, org_token: str) -> list:
 
 _LANG_CODES = {"english": "en-US", "finnish": "fi-FI", "swedish": "sv-SE", "german": "de-DE"}
 
+# Maps the voice labels the Settings page saves (SettingsView.tsx `VOICES`) to real
+# Retell voice ids. These are sensible Cartesia defaults in the same style as the
+# existing "cartesia-Grace" default — adjust them to the business's preferred Retell
+# voices (copy the exact ids from an agent in the Retell dashboard).
+VOICE_IDS = {
+    "Warm · female": "cartesia-Grace",
+    "Professional · female": "cartesia-Sophie",
+    "Friendly · male": "cartesia-Oliver",
+    "Professional · male": "cartesia-Marcus",
+}
+
 
 def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | None = None) -> dict:
     """Create a Retell LLM + agent for one org. Returns {llm_id, agent_id, ...}."""
@@ -220,7 +231,8 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
         raise ProvisionError(
             "TOOLS_SHARED_SECRET is not set — the booking tools would reject the agent's calls."
         )
-    voice = voice_id or os.getenv("RETELL_DEFAULT_VOICE_ID") or "cartesia-Grace"
+    voice = (voice_id or VOICE_IDS.get(_s(settings, "voice"))
+             or os.getenv("RETELL_DEFAULT_VOICE_ID") or "cartesia-Grace")
     model = os.getenv("RETELL_LLM_MODEL", "gpt-5.6-terra")
     lang = _s(settings or {}, "default_language", "English")
     lang_code = _LANG_CODES.get(lang.lower(), "en-US")

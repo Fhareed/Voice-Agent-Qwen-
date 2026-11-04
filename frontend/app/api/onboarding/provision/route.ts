@@ -18,6 +18,12 @@ export async function POST() {
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {
+      return NextResponse.json(
+        { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+        { status: r.status },
+      );
+    }
     if (!r.ok) {
       return NextResponse.json(
         { error: data.detail || data.error || "Setup failed." },

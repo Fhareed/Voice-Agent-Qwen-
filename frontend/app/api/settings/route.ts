@@ -29,8 +29,14 @@ export async function PATCH(req: Request) {
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
+    if (r.status === 401 || r.status === 403) {
+      return NextResponse.json(
+        { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+        { status: r.status },
+      );
+    }
     if (!r.ok) {
-      return NextResponse.json({ error: data.error || "Could not save settings." }, { status: r.status });
+      return NextResponse.json({ error: data.detail || data.error || "Could not save settings." }, { status: r.status });
     }
     return NextResponse.json({ ok: true, settings: data.settings ?? {} });
   } catch {

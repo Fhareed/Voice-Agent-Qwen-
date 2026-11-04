@@ -14,9 +14,13 @@ function initials(name?: string | null) {
 export default function Sidebar({
   active,
   orgName,
+  outboundEnabled = true,
 }: {
   active: "calls" | "outbound" | "bookings" | "knowledge" | "calendar" | "numbers" | "settings";
   orgName?: string | null;
+  // Outbound is a paid add-on; when the org isn't entitled, mark the nav item.
+  // Callers that don't pass this default to enabled, so existing behavior is unchanged.
+  outboundEnabled?: boolean;
 }) {
   const router = useRouter();
 
@@ -37,7 +41,8 @@ export default function Sidebar({
       <Link
         href="/app/outbound"
         className={`sideicon${active === "outbound" ? " on" : ""}`}
-        title="Outbound"
+        title={outboundEnabled ? "Outbound" : "Outbound — add-on not enabled"}
+        style={outboundEnabled ? undefined : { opacity: 0.5 }}
       >
         <Icon name="i-zap" />
       </Link>

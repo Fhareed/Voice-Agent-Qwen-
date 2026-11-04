@@ -15,7 +15,9 @@ import socket
 from urllib.parse import urljoin, urlparse
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
+from requests.utils import select_proxy
 
 _COMMON_PATHS = ["", "about", "about-us", "services", "menu", "pricing", "contact", "faq"]
 _TIMEOUT = 8            # seconds per page
@@ -24,18 +26,63 @@ _MAX_CHARS = 12000      # plenty for a small-business KB; keeps prompts lean
 _HEADERS = {"User-Agent": "AnswerlyBot/1.0 (+business onboarding)"}
 
 
-def _is_public_host(host: str) -> bool:
-    """True only if every address the host resolves to is a public IP."""
+def _resolve_public_ip(host: str) -> str | None:
+    """Resolve a hostname and return ONE of its addresses, but only if EVERY address
+    it resolves to is a public IP; otherwise None. Returning the exact address lets
+    the caller connect to that IP (see _PinnedIPAdapter), so the hostname can't be
+    re-resolved to an internal address between this check and the actual request."""
     try:
         infos = socket.getaddrinfo(host, None)
     except Exception:
-        return False
+        return None
+    first_ip = None
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if (ip.is_private or ip.is_loopback or ip.is_link_local
                 or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
-            return False
-    return True
+            return None
+        if first_ip is None:
+            first_ip = info[4][0]
+    return first_ip
+
+
+def _is_public_host(host: str) -> bool:
+    """True only if every address the host resolves to is a public IP."""
+    return _resolve_public_ip(host) is not None
+
+
+class _PinnedIPAdapter(requests.adapters.HTTPAdapter):
+    """Pin each request to an IP validated as public AT connection time, closing the
+    DNS-rebinding TOCTOU.
+
+    Without this, requests re-resolves the hostname when it connects, so a name that
+    passed the earlier SSRF check could resolve a second time to an internal IP. Here
+    the host is re-resolved and re-validated, then the connection is pinned to that
+    exact address — there is no gap left to rebind in. Redirect hops to other hosts
+    are validated the same way. TLS still uses the real hostname for SNI and
+    certificate verification. Requests that go through a proxy are left untouched: the
+    proxy resolves the name and governs egress.
+    """
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        pool = super().get_connection_with_tls_context(
+            request, verify, proxies=proxies, cert=cert
+        )
+        # Through a proxy we never open the socket ourselves, so there's nothing to pin.
+        if select_proxy(request.url, proxies):
+            return pool
+        host = urlparse(request.url).hostname or ""
+        ip = _resolve_public_ip(host)
+        if ip is None:
+            raise requests.exceptions.ConnectionError(
+                f"Refusing to connect to non-public host: {host}"
+            )
+        pool.host = ip
+        if isinstance(pool, urllib3.HTTPSConnectionPool):
+            # Connect to the pinned IP but keep SNI + cert verification on the hostname.
+            pool.assert_hostname = host
+            pool.conn_kw["server_hostname"] = host
+        return pool
 
 
 def validate_url(url: str) -> str:
@@ -74,24 +121,30 @@ def scrape_site(url: str) -> dict:
     root = urlparse(base)
     origin = f"{root.scheme}://{root.netloc}"
 
+    # Every request goes through the IP-pinning adapter, so the SSRF check and the
+    # connection can't drift apart (DNS rebinding), including across redirects.
+    adapter = _PinnedIPAdapter()
     seen, parts, pages = set(), [], 0
-    for path in _COMMON_PATHS:
-        if pages >= _MAX_PAGES:
-            break
-        target = urljoin(origin + "/", path)
-        if target in seen:
-            continue
-        seen.add(target)
-        try:
-            r = requests.get(target, timeout=_TIMEOUT, headers=_HEADERS, allow_redirects=True)
-        except requests.RequestException:
-            continue
-        if r.status_code != 200 or "text/html" not in r.headers.get("content-type", "").lower():
-            continue
-        text = clean_html(r.text)
-        if len(text) > 200:          # skip near-empty pages
-            parts.append(text)
-            pages += 1
+    with requests.Session() as session:
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        for path in _COMMON_PATHS:
+            if pages >= _MAX_PAGES:
+                break
+            target = urljoin(origin + "/", path)
+            if target in seen:
+                continue
+            seen.add(target)
+            try:
+                r = session.get(target, timeout=_TIMEOUT, headers=_HEADERS, allow_redirects=True)
+            except requests.RequestException:
+                continue
+            if r.status_code != 200 or "text/html" not in r.headers.get("content-type", "").lower():
+                continue
+            text = clean_html(r.text)
+            if len(text) > 200:          # skip near-empty pages
+                parts.append(text)
+                pages += 1
 
     combined = "\n\n".join(parts)[:_MAX_CHARS]
     if not combined.strip():

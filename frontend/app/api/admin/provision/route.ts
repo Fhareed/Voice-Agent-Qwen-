@@ -27,6 +27,14 @@ export async function POST(req: Request) {
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));
+    // 403 here means "logged in but not an admin", not an expired session, so only
+    // a 401 is surfaced as an auth-expiry signal for the client.
+    if (r.status === 401) {
+      return NextResponse.json(
+        { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+        { status: r.status },
+      );
+    }
     if (!r.ok) {
       return NextResponse.json(
         { error: data.detail || data.error || "Provisioning failed." },

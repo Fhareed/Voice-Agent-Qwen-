@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return NextResponse.json({ error: data.error || "Could not send." }, { status: res.status });
+      return NextResponse.json({ error: data.detail || data.error || "Could not send." }, { status: res.status });
     }
     return NextResponse.json({ ok: true });
   } catch {

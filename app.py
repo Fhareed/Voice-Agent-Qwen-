@@ -146,6 +146,12 @@ class Credentials(BaseModel):
     password: str
 
 
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -181,9 +187,11 @@ def create_lead(body: LeadIn, request: Request):
 
 
 @app.post("/auth/signup")
-def auth_signup(creds: Credentials):
+def auth_signup(creds: SignupIn):
+    if len(creds.password or "") < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
     try:
-        res = sign_up(creds.email, creds.password)
+        res = sign_up(creds.email, creds.password, name=creds.name)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     user = getattr(res, "user", None)
@@ -241,6 +249,15 @@ def auth_forgot(body: ForgotIn):
 
     redirect = (os.getenv("PUBLIC_APP_URL") or "http://localhost:3000").rstrip("/") + "/reset"
     send_password_reset(body.email, redirect)
+    return {"ok": True}
+
+
+@app.post("/auth/resend")
+def auth_resend(body: ForgotIn):
+    """Resend the signup confirmation email. Always ok (never reveals if the email exists)."""
+    from auth import resend_confirmation
+
+    resend_confirmation(body.email)
     return {"ok": True}
 
 
@@ -457,7 +474,7 @@ def _voice_answer(
 
     print(
         f"⏱  transcribe {t_stt - t0:5.2f}s | retrieve+think {t_llm - t_stt:5.2f}s | "
-        f"speak {t_tts - t_llm:5.2f}s | TOTAL {t_tts - t0:5.2f}s  |  you said: {user_text!r}"
+        f"speak {t_tts - t_llm:5.2f}s | TOTAL {t_tts - t0:5.2f}s"
     )
 
     headers = {

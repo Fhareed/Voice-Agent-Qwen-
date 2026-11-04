@@ -12,9 +12,19 @@ from pydantic import BaseModel
 
 import outbound
 import outbound_store
+import settings_store
 from deps import require_org_member
 
 router = APIRouter(prefix="/outbound", tags=["outbound"])
+
+
+def _require_outbound(org_id: str) -> None:
+    """Gate the feature on the +€99/mo add-on entitlement (settings.outbound)."""
+    if settings_store.get_settings(org_id).get("outbound") is not True:
+        raise HTTPException(
+            status_code=403,
+            detail="Outbound calling isn't enabled for your plan — add it from Billing.",
+        )
 
 
 class TargetIn(BaseModel):
@@ -32,11 +42,13 @@ class CampaignIn(BaseModel):
 
 @router.get("/campaigns")
 def list_campaigns(ctx: dict = Depends(require_org_member)):
+    _require_outbound(ctx["org_id"])
     return {"campaigns": outbound_store.list_campaigns(ctx["org_id"])}
 
 
 @router.post("/campaigns")
 def create_campaign(body: CampaignIn, ctx: dict = Depends(require_org_member)):
+    _require_outbound(ctx["org_id"])
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Campaign needs a name.")
     targets = [{"name": t.name, "phone": t.phone} for t in body.targets if (t.phone or "").strip()]
@@ -50,6 +62,7 @@ def create_campaign(body: CampaignIn, ctx: dict = Depends(require_org_member)):
 
 @router.get("/campaigns/{campaign_id}")
 def get_campaign(campaign_id: str, ctx: dict = Depends(require_org_member)):
+    _require_outbound(ctx["org_id"])
     c = outbound_store.get_campaign(ctx["org_id"], campaign_id)
     if not c:
         raise HTTPException(status_code=404, detail="Campaign not found.")
@@ -58,6 +71,7 @@ def get_campaign(campaign_id: str, ctx: dict = Depends(require_org_member)):
 
 @router.delete("/campaigns/{campaign_id}")
 def delete_campaign(campaign_id: str, ctx: dict = Depends(require_org_member)):
+    _require_outbound(ctx["org_id"])
     if not outbound_store.delete_campaign(ctx["org_id"], campaign_id):
         raise HTTPException(status_code=404, detail="Campaign not found.")
     return {"ok": True}
@@ -93,6 +107,7 @@ def launch_campaign(
     background: BackgroundTasks,
     ctx: dict = Depends(require_org_member),
 ):
+    _require_outbound(ctx["org_id"])
     c = outbound_store.get_campaign(ctx["org_id"], campaign_id)
     if not c:
         raise HTTPException(status_code=404, detail="Campaign not found.")

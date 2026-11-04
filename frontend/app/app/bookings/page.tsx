@@ -16,7 +16,7 @@ export default async function BookingsPage() {
   try {
     bookings = await fetchBookings(session);
   } catch (e) {
-    if (e instanceof AuthError) redirect("/login");
+    if (e instanceof AuthError) redirect("/api/auth/logout");
     loadError = true;
   }
 

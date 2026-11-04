@@ -37,8 +37,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Can't reach the backend." }, { status: 502 });
   }
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 || r.status === 403) {
+    return NextResponse.json(
+      { error: data.detail || data.error || "Your session expired — please sign in again.", authExpired: true },
+      { status: r.status },
+    );
+  }
   if (!r.ok) {
-    return NextResponse.json({ error: data.error || "Could not create organization." }, { status: r.status });
+    return NextResponse.json({ error: data.detail || data.error || "Could not create organization." }, { status: r.status });
   }
 
   const res = NextResponse.json({ ok: true, org_id: data.org_id, name: data.name });

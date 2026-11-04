@@ -30,12 +30,19 @@ BASE_DIR = os.getenv("TENANT_INDEX_DIR", "tenant_indexes")
 
 def org_index_path(org_id: str) -> str:
     """The folder that holds one org's index. os.path.basename strips any path
-    separators, so an org id can never point outside BASE_DIR (defence in depth —
-    org ids come from our own database, but we don't trust them blindly)."""
+    separators, but does NOT neutralise ".." (basename("..") == ".."), so we also
+    reject "." / ".." and then assert the resolved path stays within BASE_DIR. An
+    org id can never point outside BASE_DIR (defence in depth — org ids come from our
+    own database, but we don't trust them blindly)."""
     safe = os.path.basename(str(org_id))
-    if not safe:
-        raise ValueError("Empty org id.")
-    return os.path.join(BASE_DIR, safe)
+    if not safe or safe in (".", ".."):
+        raise ValueError("Invalid org id.")
+    path = os.path.join(BASE_DIR, safe)
+    base_real = os.path.realpath(BASE_DIR)
+    full_real = os.path.realpath(path)
+    if full_real != base_real and not full_real.startswith(base_real + os.sep):
+        raise ValueError("Invalid org id.")
+    return path
 
 
 def has_index(org_id: str) -> bool:

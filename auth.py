@@ -34,9 +34,17 @@ def _client():
     return _supabase
 
 
-def sign_up(email: str, password: str):
-    """Create a new user account via Supabase Auth."""
-    return _client().auth.sign_up({"email": email, "password": password})
+def sign_up(email: str, password: str, name: str = ""):
+    """Create a new user account via Supabase Auth.
+
+    When a name is given, pass it as user metadata (options.data) so Supabase
+    stores it on the account; an empty name sends no metadata (backward compatible).
+    """
+    credentials = {"email": email, "password": password}
+    name = (name or "").strip()
+    if name:
+        credentials["options"] = {"data": {"name": name}}
+    return _client().auth.sign_up(credentials)
 
 
 def sign_in(email: str, password: str):
@@ -111,6 +119,32 @@ def send_password_reset(email: str, redirect_to: str | None = None) -> None:
             params=params,
             headers={"apikey": key, "Content-Type": "application/json"},
             json={"email": email},
+            timeout=20,
+        )
+    except Exception:
+        # Swallow errors so we never leak whether the email exists.
+        pass
+
+
+def resend_confirmation(email: str) -> None:
+    """Resend the signup confirmation email via GoTrue's /resend. Never reveals
+    whether the email exists: a normal failure (unknown address, already confirmed,
+    rate-limited) is swallowed; only a missing config is surfaced to the caller.
+    """
+    import httpx
+
+    email = (email or "").strip()
+    if not email:
+        return
+    url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not (url and key):
+        raise RuntimeError("Auth is not configured.")
+    try:
+        httpx.post(
+            f"{url}/auth/v1/resend",
+            headers={"apikey": key, "Content-Type": "application/json"},
+            json={"type": "signup", "email": email},
             timeout=20,
         )
     except Exception:
