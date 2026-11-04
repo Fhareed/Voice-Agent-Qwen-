@@ -43,26 +43,6 @@ const pillStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const removeBtnStyle: CSSProperties = {
-  marginLeft: "auto",
-  background: "none",
-  border: "none",
-  color: "#ef4444",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-  padding: "4px 6px",
-};
-
-// Muted "ghost" look for the secondary (US/CA-only) buy action, so it doesn't
-// read as the default next to the recommended forward/import options.
-const secondaryBtnStyle: CSSProperties = {
-  background: "transparent",
-  color: "var(--ink-700)",
-  border: "1px solid var(--hair)",
-  boxShadow: "none",
-};
-
 export default function NumberView({
   numbers,
   orgName,
@@ -155,26 +135,40 @@ export default function NumberView({
     }
   }
 
-  async function remove(e164: string) {
+  // Release (not just unmap): actually tells Retell to let the number go, which is
+  // what stops the recurring monthly charge. For a bought US/CA number that gives
+  // the number back to Retell; for an imported number it disconnects the Retell
+  // side while the underlying number stays with the customer's own carrier.
+  async function release(e164: string, isUsCa: boolean) {
     if (busy) return;
-    if (!window.confirm(`Remove ${e164} from your dashboard? Your number won't be deleted.`)) {
+    const warning = isUsCa
+      ? `Release ${e164}? This gives the number back to Retell and stops its monthly charge. ` +
+        `The number can't be recovered, and your AI line will stop taking calls on it.`
+      : `Disconnect ${e164}? This removes it from your AI receptionist. Your number stays ` +
+        `with your own carrier, but calls will no longer reach your AI line until you set it up again.`;
+    if (!window.confirm(warning)) {
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/numbers/${encodeURIComponent(e164)}?release=false`, {
+      const res = await fetch(`/api/numbers/${encodeURIComponent(e164)}?release=true`, {
         method: "DELETE",
       });
       const data: DeleteResp = await res.json();
       if (!res.ok || data.error) {
-        setMsg({ type: "err", text: data.error || "Couldn't remove that number." });
+        setMsg({ type: "err", text: data.error || "Couldn't release that number." });
         return;
       }
-      setMsg({ type: "ok", text: `Removed ${e164}.` });
+      setMsg({
+        type: "ok",
+        text: isUsCa
+          ? `Released ${e164}. The monthly charge for it has stopped.`
+          : `Disconnected ${e164} from your AI line.`,
+      });
       await refresh();
     } catch {
-      setMsg({ type: "err", text: "Network error while removing your number." });
+      setMsg({ type: "err", text: "Network error while releasing your number." });
     } finally {
       setBusy(false);
     }
@@ -245,11 +239,13 @@ export default function NumberView({
                           </span>
                           <button
                             type="button"
-                            style={removeBtnStyle}
-                            onClick={() => remove(n.phone_e164)}
+                            className="kbrelease"
+                            onClick={() => release(n.phone_e164, isUsCa)}
                             disabled={busy}
+                            title={isUsCa ? "Release this number and stop its monthly charge" : "Disconnect this number from your AI line"}
                           >
-                            Remove
+                            <Icon name="i-x" />
+                            {isUsCa ? "Release" : "Disconnect"}
                           </button>
                         </div>
                       );
@@ -290,17 +286,18 @@ export default function NumberView({
               straight through to your AI receptionist.
             </div>
 
-            {/* Primary option 2: bring your own number over SIP. */}
-            <div className="kbtabs">
-              <button
-                type="button"
-                className={advanced ? "on" : ""}
-                onClick={() => setAdvanced((v) => !v)}
-              >
-                <Icon name="i-wrench" />
-                Import your number (SIP / advanced)
-              </button>
-            </div>
+            {/* Primary option 2: bring your own number over SIP. A clear disclosure
+                button — obviously clickable, with a chevron that flips when open. */}
+            <button
+              type="button"
+              className={`kbdisc${advanced ? " open" : ""}`}
+              onClick={() => setAdvanced((v) => !v)}
+              aria-expanded={advanced}
+            >
+              <Icon name="i-wrench" />
+              Import your number (SIP / advanced)
+              <Icon name="i-chevron-down" className="lu chev" />
+            </button>
 
             {advanced && (
               <form
@@ -374,8 +371,7 @@ export default function NumberView({
 
             <button
               type="button"
-              className="kbbtn"
-              style={secondaryBtnStyle}
+              className="kbbtn kbbtn-outline"
               onClick={provision}
               disabled={busy}
             >
