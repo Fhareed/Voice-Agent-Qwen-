@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import text
 
 from db import get_engine
@@ -159,13 +159,40 @@ def _save_booking(org_id, name, phone, email, service, start_dt, notes, calendar
 
 
 # ── models ────────────────────────────────────────────────────────────
-class CheckAvailabilityIn(BaseModel):
+class _ToolIn(BaseModel):
+    """Base for tool request bodies.
+
+    Retell can deliver a custom-function call two ways: the arguments flattened at
+    the body root (when the tool is configured args-at-root, as our provisioning
+    sets) OR wrapped as {"args": {...}, "call": {...}, "name": "..."} (the dashboard
+    default). Accept BOTH so a tool works however it was set up in Retell — and lift
+    call_id out of the envelope so bookings still link to their call.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap_retell_envelope(cls, data):
+        if not isinstance(data, dict):
+            return data
+        args = data.get("args")
+        if isinstance(args, dict):
+            merged = dict(args)
+            call = data.get("call")
+            if isinstance(call, dict) and not merged.get("call_id"):
+                cid = call.get("call_id") or call.get("callId")
+                if cid:
+                    merged["call_id"] = cid
+            return merged
+        return data
+
+
+class CheckAvailabilityIn(_ToolIn):
     org_id: str
     service: str = ""
     days: int = 5
 
 
-class BookIn(BaseModel):
+class BookIn(_ToolIn):
     org_id: str
     start: str                 # ISO 8601 — one of the slots we offered
     customer_name: str = ""
@@ -176,7 +203,7 @@ class BookIn(BaseModel):
     call_id: str | None = None
 
 
-class SmsIn(BaseModel):
+class SmsIn(_ToolIn):
     org_id: str
     to: str
     message: str
@@ -278,7 +305,7 @@ def send_sms(body: SmsIn, auth: dict = Depends(tool_auth)):
     return sms_twilio.send(body.to, body.message)
 
 
-class SearchKnowledgeIn(BaseModel):
+class SearchKnowledgeIn(_ToolIn):
     org_id: str
     query: str = ""
 
