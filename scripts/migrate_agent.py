@@ -57,6 +57,21 @@ def _patch(path: str, body: dict) -> dict:
     return r.json()
 
 
+def _get(path: str) -> dict:
+    headers = {"Authorization": f"Bearer {_key()}"}
+    r = httpx.get(f"{API}{path}", headers=headers, timeout=30)
+    if r.status_code >= 300:
+        raise SystemExit(f"❌ Retell {path} failed ({r.status_code}): {r.text[:400]}")
+    return r.json()
+
+
+def _llm_id_from_agent(agent_id: str) -> str | None:
+    """The real LLM id backing a live agent — authoritative over any stale setting."""
+    agent = _get(f"/get-agent/{agent_id}")
+    eng = agent.get("response_engine") or {}
+    return eng.get("llm_id") or None
+
+
 def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     dry = "--dry-run" in sys.argv
@@ -66,10 +81,9 @@ def main() -> None:
                          "(or set RETELL_DEFAULT_ORG_ID)")
 
     s = settings_store.get_settings(org_id)
-    llm_id = s.get("retell_llm_id")
     agent_id = s.get("retell_agent_id")
-    if not llm_id or not agent_id:
-        raise SystemExit(f"Org {org_id} has no provisioned llm_id/agent_id in settings — "
+    if not agent_id:
+        raise SystemExit(f"Org {org_id} has no retell_agent_id in settings — "
                          "nothing to migrate (provision it first).")
 
     secret = os.getenv("TOOLS_SHARED_SECRET", "")
@@ -80,12 +94,21 @@ def main() -> None:
     token = s.get("tools_token") or secrets.token_urlsafe(24)
     new_token = not s.get("tools_token")
 
+    # The live agent is the source of truth for its LLM id — a stored retell_llm_id
+    # can be stale if the agent was re-pointed, which makes /update-retell-llm 404.
+    stored_llm = s.get("retell_llm_id")
+    llm_id = _llm_id_from_agent(agent_id) or stored_llm
+    if not llm_id:
+        raise SystemExit(f"Couldn't find the LLM backing agent {agent_id} (its response_engine "
+                         "has no llm_id). Re-provision the agent.")
+    llm_corrected = bool(stored_llm) and llm_id != stored_llm
+
     prompt = build_prompt(s, org_name, org_id)
     tools = _tools(base, secret, token)
 
     print(f"Org:        {org_id}  ({org_name})")
-    print(f"LLM:        {llm_id}")
     print(f"Agent:      {agent_id}")
+    print(f"LLM:        {llm_id}" + (f"  (stored was {stored_llm} — STALE, will fix)" if llm_corrected else ""))
     print(f"Base URL:   {base}")
     print(f"Tools token:{' (new, will be stored)' if new_token else ' (existing)'}")
     print(f"Tools:      {[t['name'] for t in tools]}")
@@ -94,11 +117,16 @@ def main() -> None:
         print("\n--dry-run: no changes made.")
         return
 
-    # 1) Persist the token FIRST so tools_api can resolve it the instant the agent
-    #    starts sending the X-LumiDesk-Org-Token header.
+    # 1) Persist the token (and corrected llm id) FIRST so tools_api can resolve the
+    #    token the instant the agent starts sending the X-LumiDesk-Org-Token header.
+    patch = {}
     if new_token:
-        settings_store.save_settings(org_id, {"tools_token": token})
-        print("✅ stored per-org tools_token")
+        patch["tools_token"] = token
+    if llm_corrected:
+        patch["retell_llm_id"] = llm_id
+    if patch:
+        settings_store.save_settings(org_id, patch)
+        print(f"✅ stored {', '.join(patch)}")
 
     # 2) Update the LLM in place: new prompt (C5) + new tools (H8 X-Call-Id, H2 token).
     _patch(f"/update-retell-llm/{llm_id}", {
