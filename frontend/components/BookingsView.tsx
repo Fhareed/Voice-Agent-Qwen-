@@ -38,18 +38,6 @@ function mondayOf(d: Date) {
   x.setDate(x.getDate() - day);
   return x;
 }
-// The week to show first: the week of the booking nearest to today, or this week when there are none.
-function initialWeekStart(bookings: Booking[]) {
-  const now = new Date();
-  const starts = bookings
-    .map((b) => (b.start_ts ? new Date(b.start_ts) : null))
-    .filter((t): t is Date => t !== null && !isNaN(t.getTime()));
-  let ref = now;
-  if (starts.length) {
-    ref = [...starts].sort((a, c) => Math.abs(a.getTime() - now.getTime()) - Math.abs(c.getTime() - now.getTime()))[0];
-  }
-  return mondayOf(ref);
-}
 function visStatus(b: Booking): VStatus {
   const s = b.status || "booked";
   if (s === "completed") return "completed";
@@ -77,19 +65,7 @@ export default function BookingsView({
 }) {
   const [selIdx, setSelIdx] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
-  const [weekStart, setWeekStart] = useState<Date>(() => initialWeekStart(bookings));
   const rootRef = useRef<HTMLDivElement>(null);
-
-  function shiftWeek(delta: number) {
-    setWeekStart((prev) => {
-      const x = new Date(prev);
-      x.setDate(x.getDate() + delta * 7);
-      return x;
-    });
-  }
-  function goToday() {
-    setWeekStart(mondayOf(new Date()));
-  }
 
   const d = useMemo(() => {
     const parsed = bookings
@@ -102,21 +78,26 @@ export default function BookingsView({
       .filter((x): x is { raw: Booking; start: Date; end: Date } => x !== null);
 
     const now = new Date();
+    let ref = now;
+    if (parsed.length) {
+      ref = [...parsed].sort((a, c) => Math.abs(a.start.getTime() - now.getTime()) - Math.abs(c.start.getTime() - now.getTime()))[0].start;
+    }
+    const weekStart = mondayOf(ref);
     const dayIndex = (dt: Date) => {
       const x = new Date(dt);
       x.setHours(0, 0, 0, 0);
       return Math.round((x.getTime() - weekStart.getTime()) / 86400000);
     };
 
-    const last = new Date(weekStart);
-    last.setDate(last.getDate() + 6);
+    const friday = new Date(weekStart);
+    friday.setDate(friday.getDate() + 4);
     const monthLabel =
-      weekStart.getMonth() === last.getMonth()
+      weekStart.getMonth() === friday.getMonth()
         ? MON[weekStart.getMonth()] + " " + weekStart.getFullYear()
-        : MON[weekStart.getMonth()] + "–" + MON[last.getMonth()] + " " + last.getFullYear();
+        : MON[weekStart.getMonth()] + "–" + MON[friday.getMonth()] + " " + friday.getFullYear();
 
     const DAYS: Date[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) {
       const dd = new Date(weekStart);
       dd.setDate(dd.getDate() + i);
       DAYS.push(dd);
@@ -124,12 +105,12 @@ export default function BookingsView({
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     let today = Math.round((todayStart.getTime() - weekStart.getTime()) / 86400000);
-    if (today < 0 || today > 6) today = -1;
+    if (today < 0 || today > 4) today = -1;
 
     const appts: Appt[] = [];
     parsed.forEach((x) => {
       const di = dayIndex(x.start);
-      if (di < 0 || di > 6) return;
+      if (di < 0 || di > 4) return;
       const vs = visStatus(x.raw);
       const st = STATUS[vs];
       appts.push({
@@ -188,7 +169,7 @@ export default function BookingsView({
       sparkDone: sparkFrom((b) => b.status === "completed"),
       sparkCancel: sparkFrom((b) => b.status === "cancelled" || b.status === "no_show"),
     };
-  }, [bookings, weekStart]);
+  }, [bookings]);
 
   const sel = selIdx != null ? d.appts[selIdx] : undefined;
 
@@ -246,12 +227,15 @@ export default function BookingsView({
           </div>
 
           <div className="toolbar">
-            <button className="todaybtn" onClick={goToday}>Today</button>
+            <button className="todaybtn">Today</button>
             <div className="monthnav">
-              <button className="nv" aria-label="Previous week" onClick={() => shiftWeek(-1)}><Icon name="i-chev-l" /></button>
+              <span className="nv"><Icon name="i-chev-l" /></span>
               <span>{d.monthLabel}</span>
-              <button className="nv" aria-label="Next week" onClick={() => shiftWeek(1)}><Icon name="i-chev-r" /></button>
+              <span className="nv"><Icon name="i-chev-r" /></span>
             </div>
+            <div className="seg"><span>Day</span><span className="on">Week</span><span>Month</span></div>
+            <div className="filter"><Icon name="i-check-circle" />All status<Icon name="i-chevron-down" className="lu ch" /></div>
+            <div className="filter"><Icon name="i-users" />All plumbers<Icon name="i-chevron-down" className="lu ch" /></div>
           </div>
 
           <div className="stats">
@@ -282,7 +266,7 @@ export default function BookingsView({
           </div>
 
           <div className="cal">
-            <div className="dayhead" style={{ gridTemplateColumns: "54px repeat(7, 1fr)" }}>
+            <div className="dayhead">
               <div className="tz">GMT+3</div>
               {d.DAYS.map((day, i) => {
                 const cnt = d.appts.filter((a) => a.day === i).length;
@@ -294,14 +278,14 @@ export default function BookingsView({
                 );
               })}
             </div>
-            <div className="calbody" style={{ gridTemplateColumns: "54px repeat(7, 1fr)" }}>
+            <div className="calbody">
               <div className="timecol">
                 {d.hours.map((h, i) => {
                   const lab = h % 12 || 12;
                   return <div className="tl" key={i}><span>{lab}:00 {h < 12 ? "AM" : "PM"}</span></div>;
                 })}
               </div>
-              {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+              {[0, 1, 2, 3, 4].map((day) => (
                 <div className="daycol" key={day}>
                   {day === d.today && d.nowTop != null && <div className="nowline" style={{ top: d.nowTop }} />}
                   {d.appts.filter((a) => a.day === day).map((a) => (
@@ -327,7 +311,7 @@ export default function BookingsView({
                   {loadError
                     ? "Couldn't reach the backend just now."
                     : d.raw
-                      ? `You have ${d.raw} booking${d.raw === 1 ? "" : "s"} in other weeks. Use the week arrows, or press Today, to find them.`
+                      ? `You have ${d.raw} booking${d.raw === 1 ? "" : "s"} in other weeks. Use the arrows to find them.`
                       : "When your AI receptionist books a job over the phone, it shows up on this calendar automatically."}
                 </span>
               </div>
