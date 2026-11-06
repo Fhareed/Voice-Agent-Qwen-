@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { BACKEND_URL } from "@/lib/api";
 
-// Founder-only: list every support message across all orgs. Proxies to the
+// Founder-only: list every support thread across all orgs. Proxies to the
 // backend with the session token; the backend enforces ADMIN_EMAILS.
 export async function GET(req: Request) {
   const token = cookies().get("ld_token")?.value;
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     if (!r.ok) {
       return NextResponse.json({ error: data.detail || data.error || "Could not load messages." }, { status: r.status });
     }
-    return NextResponse.json({ messages: data.messages ?? [], open_count: data.open_count ?? 0 });
+    return NextResponse.json({ threads: data.threads ?? [], open_count: data.open_count ?? 0 });
   } catch {
     return NextResponse.json({ error: "Can't reach the backend right now." }, { status: 502 });
   }

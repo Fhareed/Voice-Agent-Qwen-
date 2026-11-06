@@ -648,36 +648,65 @@ def setup_status_endpoint(ctx: dict = Depends(require_org_member)):
 
 # ── Support / contact (owner-facing, per org) ─────────────────────
 # A signed-in customer messages the LumiDesk team from inside the app; the
-# founder reads + replies from the admin dashboard. Scoped to the caller's org.
+# founder reads + replies from the admin dashboard. It's a continuous two-way
+# thread — either side can keep adding messages. Scoped to the caller's org.
 class SupportIn(BaseModel):
     subject: str = ""
     message: str
 
 
-@app.post("/support/messages")
-def create_support_message(body: SupportIn, ctx: dict = Depends(require_org_member)):
-    """Customer posts a message to the LumiDesk team. The org and sender come from
-    the verified session (ctx), never from the request body."""
+class SupportReplyMsgIn(BaseModel):
+    message: str
+
+
+@app.post("/support/threads")
+def start_support_thread(body: SupportIn, ctx: dict = Depends(require_org_member)):
+    """Customer opens a new support thread. The org and sender come from the
+    verified session (ctx), never from the request body."""
     if not (body.message or "").strip():
         raise HTTPException(status_code=400, detail="A message is required.")
     user = ctx.get("user") or {}
     try:
-        row = support_store.create_message(
+        thread = support_store.start_thread(
             org_id=ctx["org_id"],
             user_id=user.get("id"),
             email=user.get("email") or "",
             subject=body.subject,
-            message=body.message,
+            body=body.message,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return {"message": row}
+    return {"thread": thread}
 
 
-@app.get("/support/messages")
-def list_support_messages(ctx: dict = Depends(require_org_member)):
-    """This org's own support messages + any admin replies, newest first."""
-    return {"messages": support_store.list_for_org(ctx["org_id"])}
+@app.get("/support/threads")
+def list_support_threads(ctx: dict = Depends(require_org_member)):
+    """This org's own support threads, most-recently-active first."""
+    return {"threads": support_store.list_threads_for_org(ctx["org_id"])}
+
+
+@app.post("/support/threads/{thread_id}/messages")
+def add_support_message(
+    thread_id: str, body: SupportReplyMsgIn, ctx: dict = Depends(require_org_member)
+):
+    """Customer adds a follow-up message to one of their existing threads — works
+    at any time, including after the team has replied."""
+    if not (body.message or "").strip():
+        raise HTTPException(status_code=400, detail="A message is required.")
+    user = ctx.get("user") or {}
+    try:
+        thread = support_store.add_customer_message(
+            org_id=ctx["org_id"],
+            thread_id=thread_id,
+            user_id=user.get("id"),
+            email=user.get("email") or "",
+            body=body.message,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return {"thread": thread}
 
 
 # ── Admin (founder-only): onboarding cockpit ──────────────────────
@@ -825,10 +854,10 @@ def admin_metrics(_: dict = Depends(require_admin)):
 
 @app.get("/admin/support")
 def admin_list_support(status: str | None = None, _: dict = Depends(require_admin)):
-    """Every support message across all orgs, newest first (founder only).
-    `status` optionally filters to open / replied / closed."""
+    """Every support thread across all orgs, most-recently-active first (founder
+    only). `status` optionally filters to open / replied."""
     return {
-        "messages": support_store.list_all(status=status),
+        "threads": support_store.list_all_threads(status=status),
         "open_count": support_store.open_count(),
     }
 
@@ -837,21 +866,21 @@ class SupportReplyIn(BaseModel):
     reply: str
 
 
-@app.post("/admin/support/{message_id}/reply")
+@app.post("/admin/support/{thread_id}/reply")
 def admin_reply_support(
-    message_id: str, body: SupportReplyIn, _: dict = Depends(require_admin)
+    thread_id: str, body: SupportReplyIn, _: dict = Depends(require_admin)
 ):
-    """Founder replies to a customer's support message. The reply is stored on the
-    row and the customer sees it on their Support page."""
+    """Founder adds a reply to a support thread. The customer sees it on their
+    Support page and can keep the conversation going."""
     if not (body.reply or "").strip():
         raise HTTPException(status_code=400, detail="A reply is required.")
     try:
-        row = support_store.reply_to_message(message_id, body.reply)
+        thread = support_store.add_admin_message(thread_id, body.reply)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    if not row:
-        raise HTTPException(status_code=404, detail="Message not found.")
-    return {"message": row}
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return {"thread": thread}
 
 
 @app.post("/admin/provision/{org_id}")

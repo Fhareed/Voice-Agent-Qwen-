@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { BACKEND_URL } from "@/lib/api";
 
-// Founder-only: reply to one support message. Proxies to the backend with the
-// session token; the backend enforces ADMIN_EMAILS.
+// Founder-only: add a reply to one support thread. Proxies to the backend with
+// the session token; the backend enforces ADMIN_EMAILS. `id` is the thread id.
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const token = cookies().get("ld_token")?.value;
   if (!token) {
@@ -32,7 +32,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!r.ok) {
       return NextResponse.json({ error: data.detail || data.error || "Could not send your reply." }, { status: r.status });
     }
-    return NextResponse.json({ ok: true, message: data.message ?? null });
+    return NextResponse.json({ ok: true, thread: data.thread ?? null });
   } catch {
     return NextResponse.json({ error: "Can't reach the backend right now." }, { status: 502 });
   }

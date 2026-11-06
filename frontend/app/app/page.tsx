@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthError, fetchBookings, fetchCalls, fetchSetupStatus, getSession, type SetupStatus } from "@/lib/api";
+import { AuthError, fetchBookings, fetchCalls, fetchSettings, fetchSetupStatus, getSession, type SetupStatus, type Settings } from "@/lib/api";
 import DashboardView from "@/components/DashboardView";
 import NeedOrg from "@/components/NeedOrg";
 import type { Booking, Call } from "@/lib/types";
@@ -32,9 +32,14 @@ export default async function DashboardPage() {
 
   let calls: Call[] = [];
   let bookings: Booking[] = [];
+  let settings: Settings = {};
   let loadError = false;
   try {
-    [calls, bookings] = await Promise.all([fetchCalls(session), fetchBookings(session)]);
+    [calls, bookings, settings] = await Promise.all([
+      fetchCalls(session),
+      fetchBookings(session),
+      fetchSettings(session).catch(() => ({} as Settings)),
+    ]);
   } catch (e) {
     if (e instanceof AuthError) redirect("/api/auth/logout");
     loadError = true;
@@ -49,6 +54,8 @@ export default async function DashboardPage() {
       ready={status?.ready}
       hasAgent={status?.has_agent}
       hasNumber={status?.has_number}
+      paid={status?.paid}
+      settings={settings}
     />
   );
 }

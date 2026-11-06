@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AdminMetrics, AdminOrg, Settings, SupportMessage } from "@/lib/api";
+import type { AdminMetrics, AdminOrg, Settings, SupportThread } from "@/lib/api";
 
 const BASE_KEY = "ld_admin_base_url";
 const WIRED_KEY = "ld_admin_wired";
@@ -311,11 +311,10 @@ function MetricsBar({ m }: { m: AdminMetrics }) {
   );
 }
 
-function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: SupportMessage) => void }) {
+function SupportRow({ t, onUpdated }: { t: SupportThread; onUpdated: (thread: SupportThread) => void }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
 
   async function sendReply() {
     if (!draft.trim()) {
@@ -325,7 +324,7 @@ function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: Supp
     setSending(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/support/${encodeURIComponent(m.id)}/reply`, {
+      const res = await fetch(`/api/admin/support/${encodeURIComponent(t.thread_id)}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reply: draft.trim() }),
@@ -336,8 +335,7 @@ function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: Supp
         return;
       }
       setDraft("");
-      setEditing(false);
-      if (data.message) onReplied(data.message as SupportMessage);
+      if (data.thread) onUpdated(data.thread as SupportThread);
     } catch {
       setError("Couldn't reach the server.");
     } finally {
@@ -345,14 +343,14 @@ function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: Supp
     }
   }
 
-  const replied = m.status === "replied" && m.admin_reply;
+  const replied = t.status === "replied";
 
   return (
     <div className="rounded-xl border border-[#EDEEF1] bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[13px] font-bold text-[#161616]">{m.email || "Unknown sender"}</div>
-          {m.subject && <div className="mt-0.5 text-[12.5px] font-semibold text-[#2A2A2E]">{m.subject}</div>}
+          <div className="text-[13px] font-bold text-[#161616]">{t.email || "Unknown sender"}</div>
+          {t.subject && <div className="mt-0.5 text-[12.5px] font-semibold text-[#2A2A2E]">{t.subject}</div>}
         </div>
         <div className="flex items-center gap-2">
           <span
@@ -362,73 +360,63 @@ function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: Supp
           >
             {replied ? "Replied" : "Open"}
           </span>
-          <span className="text-[11.5px] text-[#9AA0AB]">{fmtDate(m.created_at)}</span>
+          <span className="text-[11.5px] text-[#9AA0AB]">{fmtDate(t.updated_at)}</span>
         </div>
       </div>
 
-      <div className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-[#F6F7F9] px-3 py-2 text-[13px] text-[#2A2A2E]">
-        {m.message}
-      </div>
-
-      {replied && !editing && (
-        <div className="mt-3 rounded-lg border border-[#D9E4FF] bg-[#F2F6FF] px-3 py-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-cobalt">Your reply</span>
-            <button
-              type="button"
-              onClick={() => {
-                setDraft(m.admin_reply || "");
-                setEditing(true);
-              }}
-              className="text-[11.5px] font-semibold text-cobalt hover:underline"
-            >
-              Edit
-            </button>
-          </div>
-          <div className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#2A2A2E]">{m.admin_reply}</div>
-        </div>
-      )}
-
-      {(!replied || editing) && (
-        <div className="mt-3">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Write a reply… the customer sees this on their Support page."
-            className="min-h-[72px] w-full resize-y rounded-lg border border-[#E7E6EC] bg-white px-3 py-2 text-[13px] text-[#161616] outline-none focus:border-cobalt"
-          />
-          {error && <p className="mt-1.5 text-[12px] font-semibold text-[#B3541F]">{error}</p>}
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={sendReply}
-              disabled={sending || !draft.trim()}
-              className="rounded-full bg-cobalt px-4 py-1.5 font-display text-[12.5px] font-bold text-white transition-opacity disabled:opacity-50"
-            >
-              {sending ? "Sending…" : replied ? "Update reply" : "Send reply"}
-            </button>
-            {editing && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(false);
-                  setDraft("");
-                  setError(null);
-                }}
-                className="text-[12.5px] font-semibold text-[#6B6B70] hover:text-[#161616]"
+      {/* Full conversation */}
+      <div className="mt-2 flex flex-col gap-2">
+        {t.messages.map((msg) => {
+          const isAdmin = msg.sender === "admin";
+          return (
+            <div key={msg.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                  isAdmin ? "border border-[#D9E4FF] bg-[#F2F6FF]" : "bg-[#F6F7F9]"
+                }`}
               >
-                Cancel
-              </button>
-            )}
-          </div>
+                <div
+                  className={`text-[10.5px] font-bold uppercase tracking-wide ${
+                    isAdmin ? "text-cobalt" : "text-[#8E8E92]"
+                  }`}
+                >
+                  {isAdmin ? "You" : "Customer"}
+                </div>
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-[#2A2A2E]">
+                  {msg.body}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Reply — always available, so the conversation can continue */}
+      <div className="mt-3">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Reply… the customer sees this on their Support page and can reply back."
+          className="min-h-[64px] w-full resize-y rounded-lg border border-[#E7E6EC] bg-white px-3 py-2 text-[13px] text-[#161616] outline-none focus:border-cobalt"
+        />
+        {error && <p className="mt-1.5 text-[12px] font-semibold text-[#B3541F]">{error}</p>}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={sendReply}
+            disabled={sending || !draft.trim()}
+            className="rounded-full bg-cobalt px-4 py-1.5 font-display text-[12.5px] font-bold text-white transition-opacity disabled:opacity-50"
+          >
+            {sending ? "Sending…" : "Send reply"}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 function SupportInbox() {
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [threads, setThreads] = useState<SupportThread[]>([]);
   const [openCount, setOpenCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -442,7 +430,7 @@ function SupportInbox() {
         setError(true);
         return;
       }
-      setMessages(data.messages ?? []);
+      setThreads(data.threads ?? []);
       setOpenCount(data.open_count ?? 0);
       setError(false);
     } catch {
@@ -457,12 +445,15 @@ function SupportInbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function onReplied(row: SupportMessage) {
-    setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
-    setOpenCount((c) => Math.max(0, c - 1));
+  function onUpdated(updated: SupportThread) {
+    setThreads((prev) => prev.map((t) => (t.thread_id === updated.thread_id ? updated : t)));
+    setOpenCount((prev) => {
+      // Recompute from the fresh list: a thread we just replied to is no longer open.
+      return Math.max(0, prev - 1);
+    });
   }
 
-  const shown = onlyOpen ? messages.filter((m) => m.status !== "replied") : messages;
+  const shown = onlyOpen ? threads.filter((t) => t.status !== "replied") : threads;
 
   return (
     <section className="mb-6 rounded-2xl border border-[#E7E6EC] bg-[#FBFBFC] p-5 shadow-[0_6px_18px_rgba(23,23,23,0.04)]">
@@ -476,7 +467,7 @@ function SupportInbox() {
               </span>
             )}
           </h2>
-          <p className="mt-0.5 text-[12.5px] text-[#8E8E92]">Messages from customers. Replies show on their Support page.</p>
+          <p className="mt-0.5 text-[12.5px] text-[#8E8E92]">Conversations with customers. Replies show on their Support page, and they can reply back.</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-bold text-[#6B6B70]">
@@ -501,12 +492,12 @@ function SupportInbox() {
         </p>
       ) : shown.length === 0 ? (
         <p className="text-[13px] text-[#8E8E92]">
-          {onlyOpen ? "No open messages — you're all caught up." : "No messages yet."}
+          {onlyOpen ? "No open conversations — you're all caught up." : "No conversations yet."}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {shown.map((m) => (
-            <SupportRow key={m.id} m={m} onReplied={onReplied} />
+          {shown.map((t) => (
+            <SupportRow key={t.thread_id} t={t} onUpdated={onUpdated} />
           ))}
         </div>
       )}

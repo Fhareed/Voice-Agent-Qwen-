@@ -171,23 +171,32 @@ export async function fetchAdminMetrics(session: Session): Promise<AdminMetrics 
   return data.metrics ?? null;
 }
 
-// ── Support / contact messages ─────────────────────────────────────
-export interface SupportMessage {
+// ── Support / contact threads ──────────────────────────────────────
+// One continuous two-way conversation = a thread of messages, each from either
+// the customer or the LumiDesk team ('admin'). Status is derived server-side:
+// 'open' = last message is the customer's (awaiting us); 'replied' = last is ours.
+export interface SupportThreadMessage {
   id: string;
+  sender: string; // 'customer' | 'admin'
+  body: string;
+  created_at: string | null;
+}
+
+export interface SupportThread {
+  thread_id: string;
   org_id: string | null;
   email: string | null;
   subject: string | null;
-  message: string;
-  admin_reply: string | null;
-  status: string; // open | replied | closed
+  status: string; // open | replied
   created_at: string | null;
-  replied_at: string | null;
+  updated_at: string | null;
+  messages: SupportThreadMessage[];
 }
 
-/** Admin (founder-only): every support message across all orgs, newest first. */
+/** Admin (founder-only): every support thread across all orgs, newest activity first. */
 export async function fetchAdminSupport(
   session: Session,
-): Promise<{ messages: SupportMessage[]; open_count: number }> {
+): Promise<{ threads: SupportThread[]; open_count: number }> {
   const res = await fetch(`${BACKEND_URL}/admin/support`, {
     headers: authHeaders(session),
     cache: "no-store",
@@ -195,8 +204,8 @@ export async function fetchAdminSupport(
   if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
   if (res.status === 401) throw new AuthError("Not authorized for /admin/support");
   if (!res.ok) throw new Error(`Backend /admin/support failed: ${res.status}`);
-  const data = (await res.json()) as { messages: SupportMessage[]; open_count: number };
-  return { messages: data.messages ?? [], open_count: data.open_count ?? 0 };
+  const data = (await res.json()) as { threads: SupportThread[]; open_count: number };
+  return { threads: data.threads ?? [], open_count: data.open_count ?? 0 };
 }
 
 // ── Outbound campaigns (per org) ───────────────────────────────────

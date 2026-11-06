@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import Icon from "./Icon";
 import Sidebar from "./Sidebar";
 import CallDetail from "./CallDetail";
+import GettingStarted from "./GettingStarted";
 import type { Booking, Call } from "@/lib/types";
+import type { Settings } from "@/lib/api";
 
 const AV = ["#64748B", "#3F8F86", "#A9795A", "#7E6A99", "#B5697A", "#4E79B8", "#5B6CB0"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -127,6 +129,8 @@ export default function DashboardView({
   ready,
   hasAgent,
   hasNumber,
+  paid,
+  settings,
 }: {
   calls: Call[];
   bookings: Booking[];
@@ -135,6 +139,8 @@ export default function DashboardView({
   ready?: boolean;
   hasAgent?: boolean;
   hasNumber?: boolean;
+  paid?: boolean;
+  settings?: Settings;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -339,6 +345,7 @@ export default function DashboardView({
     <div className="panel" ref={rootRef}>
       <Sidebar active="calls" orgName={orgName} />
       <main className="content">
+        <GettingStarted settings={settings ?? {}} paid={paid} hasNumber={hasNumber} orgName={orgName} />
         {ready === false && hasAgent === false && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#F5D6C6] bg-[#FDEFE7] px-5 py-4 shadow-[0_10px_28px_rgba(23,23,23,0.05)] sm:flex-row sm:items-center sm:justify-between">
             <div>
