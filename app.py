@@ -16,6 +16,7 @@ from starlette.background import BackgroundTask
 import bookings_store
 import call_logs
 import settings_store
+import support_store
 from auth import get_current_user, sign_in, sign_up
 from deps import require_org_member
 from lead_extract import extract_lead
@@ -645,6 +646,40 @@ def setup_status_endpoint(ctx: dict = Depends(require_org_member)):
     }
 
 
+# ── Support / contact (owner-facing, per org) ─────────────────────
+# A signed-in customer messages the LumiDesk team from inside the app; the
+# founder reads + replies from the admin dashboard. Scoped to the caller's org.
+class SupportIn(BaseModel):
+    subject: str = ""
+    message: str
+
+
+@app.post("/support/messages")
+def create_support_message(body: SupportIn, ctx: dict = Depends(require_org_member)):
+    """Customer posts a message to the LumiDesk team. The org and sender come from
+    the verified session (ctx), never from the request body."""
+    if not (body.message or "").strip():
+        raise HTTPException(status_code=400, detail="A message is required.")
+    user = ctx.get("user") or {}
+    try:
+        row = support_store.create_message(
+            org_id=ctx["org_id"],
+            user_id=user.get("id"),
+            email=user.get("email") or "",
+            subject=body.subject,
+            message=body.message,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": row}
+
+
+@app.get("/support/messages")
+def list_support_messages(ctx: dict = Depends(require_org_member)):
+    """This org's own support messages + any admin replies, newest first."""
+    return {"messages": support_store.list_for_org(ctx["org_id"])}
+
+
 # ── Admin (founder-only): onboarding cockpit ──────────────────────
 # Lists every org with the values needed to wire it into Retell by hand.
 # Gated by ADMIN_EMAILS (comma-separated) in the environment: the logged-in
@@ -725,6 +760,98 @@ def admin_list_orgs(_: dict = Depends(require_admin)):
             }
         )
     return {"orgs": out}
+
+
+@app.get("/admin/metrics")
+def admin_metrics(_: dict = Depends(require_admin)):
+    """Roll-up metrics for the admin dashboard (founder only). Derived from data we
+    already store — no new tables."""
+    from sqlalchemy import text
+
+    from db import get_engine
+
+    m: dict = {}
+    with get_engine().connect() as conn:
+        m["total_orgs"] = int(conn.execute(text("select count(*) from organizations")).scalar() or 0)
+        m["new_7d"] = int(conn.execute(
+            text("select count(*) from organizations where created_at >= now() - interval '7 days'")
+        ).scalar() or 0)
+        m["new_30d"] = int(conn.execute(
+            text("select count(*) from organizations where created_at >= now() - interval '30 days'")
+        ).scalar() or 0)
+        m["total_calls"] = int(conn.execute(text("select count(*) from call_logs")).scalar() or 0)
+        m["total_bookings"] = int(conn.execute(text("select count(*) from bookings")).scalar() or 0)
+        settings_rows = conn.execute(text("select data from org_settings")).all()
+
+    paid = onboarded = with_agent = with_number = 0
+    by_plan: dict = {}
+    by_country: dict = {}
+    by_language: dict = {}
+    for (data,) in settings_rows:
+        d = data or {}
+        if d.get("paid"):
+            paid += 1
+        if d.get("onboarded"):
+            onboarded += 1
+        if d.get("retell_agent_id"):
+            with_agent += 1
+        if d.get("retell_phone_number"):
+            with_number += 1
+        p = d.get("plan") or "—"
+        by_plan[p] = by_plan.get(p, 0) + 1
+        c = d.get("country") or "—"
+        by_country[c] = by_country.get(c, 0) + 1
+        lg = d.get("default_language") or "—"
+        by_language[lg] = by_language.get(lg, 0) + 1
+    m.update({
+        "paid": paid, "onboarded": onboarded, "with_agent": with_agent, "with_number": with_number,
+        "by_plan": by_plan, "by_country": by_country, "by_language": by_language,
+    })
+
+    # Active + total users — best effort (auth.users may not be readable by this role).
+    m["active_7d"] = None
+    m["total_users"] = None
+    try:
+        with get_engine().connect() as c2:
+            m["active_7d"] = int(c2.execute(
+                text("select count(*) from auth.users where last_sign_in_at >= now() - interval '7 days'")
+            ).scalar() or 0)
+            m["total_users"] = int(c2.execute(text("select count(*) from auth.users")).scalar() or 0)
+    except Exception:
+        pass
+
+    return {"metrics": m}
+
+
+@app.get("/admin/support")
+def admin_list_support(status: str | None = None, _: dict = Depends(require_admin)):
+    """Every support message across all orgs, newest first (founder only).
+    `status` optionally filters to open / replied / closed."""
+    return {
+        "messages": support_store.list_all(status=status),
+        "open_count": support_store.open_count(),
+    }
+
+
+class SupportReplyIn(BaseModel):
+    reply: str
+
+
+@app.post("/admin/support/{message_id}/reply")
+def admin_reply_support(
+    message_id: str, body: SupportReplyIn, _: dict = Depends(require_admin)
+):
+    """Founder replies to a customer's support message. The reply is stored on the
+    row and the customer sees it on their Support page."""
+    if not (body.reply or "").strip():
+        raise HTTPException(status_code=400, detail="A reply is required.")
+    try:
+        row = support_store.reply_to_message(message_id, body.reply)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    return {"message": row}
 
 
 @app.post("/admin/provision/{org_id}")

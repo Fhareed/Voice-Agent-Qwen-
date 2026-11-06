@@ -16,7 +16,7 @@ export default function Sidebar({
   orgName,
   outboundEnabled = true,
 }: {
-  active: "calls" | "outbound" | "bookings" | "knowledge" | "calendar" | "numbers" | "settings";
+  active: "calls" | "outbound" | "bookings" | "knowledge" | "calendar" | "numbers" | "support" | "settings";
   orgName?: string | null;
   // Outbound is a paid add-on; when the org isn't entitled, mark the nav item.
   // Callers that don't pass this default to enabled, so existing behavior is unchanged.
@@ -80,6 +80,13 @@ export default function Sidebar({
       <div className="sideicon" title="Reports (coming soon)">
         <Icon name="i-chart" />
       </div>
+      <Link
+        href="/app/support"
+        className={`sideicon${active === "support" ? " on" : ""}`}
+        title="Support — contact the LumiDesk team"
+      >
+        <Icon name="i-message" />
+      </Link>
       <Link
         href="/app/settings"
         className={`sideicon${active === "settings" ? " on" : ""}`}

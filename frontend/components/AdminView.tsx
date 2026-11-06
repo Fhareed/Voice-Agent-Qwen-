@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AdminOrg, Settings } from "@/lib/api";
+import type { AdminMetrics, AdminOrg, Settings, SupportMessage } from "@/lib/api";
 
 const BASE_KEY = "ld_admin_base_url";
 const WIRED_KEY = "ld_admin_wired";
@@ -264,7 +264,257 @@ function OrgCard({ org, baseUrl, wired, toggleWired }: { org: AdminOrg; baseUrl:
   );
 }
 
-export default function AdminView({ orgs, loadError }: { orgs: AdminOrg[]; loadError?: boolean }) {
+function Tile({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-[#E7E6EC] bg-white p-4 shadow-[0_6px_18px_rgba(23,23,23,0.04)]">
+      <div className="text-[11.5px] font-bold uppercase tracking-wide text-[#8E8E92]">{label}</div>
+      <div className="mt-1 font-display text-[26px] font-bold leading-none text-[#161616]">{value}</div>
+      {hint && <div className="mt-1.5 text-[12px] text-[#8E8E92]">{hint}</div>}
+    </div>
+  );
+}
+
+function Breakdown({ title, data }: { title: string; data: Record<string, number> }) {
+  const entries = Object.entries(data || {}).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return null;
+  return (
+    <div className="rounded-2xl border border-[#E7E6EC] bg-white p-4">
+      <div className="text-[11.5px] font-bold uppercase tracking-wide text-[#8E8E92]">{title}</div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {entries.map(([k, v]) => (
+          <span key={k} className="inline-flex items-center gap-1 rounded-full border border-[#E7E6EC] bg-[#F7F7F9] px-2.5 py-1 text-[12px] font-semibold text-[#2A2A2E]">
+            {k} <b className="text-[#161616]">{v}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricsBar({ m }: { m: AdminMetrics }) {
+  return (
+    <section className="mb-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Tile label="Businesses" value={m.total_orgs} hint={`+${m.new_7d} this week`} />
+        <Tile label="Subscribed" value={m.paid} hint={m.total_orgs ? `${Math.round((m.paid / m.total_orgs) * 100)}% of signups` : undefined} />
+        <Tile label="Onboarded" value={m.onboarded} hint={`${m.with_number} with a number`} />
+        <Tile label="Active · 7d" value={m.active_7d ?? "—"} hint={m.total_users != null ? `${m.total_users} users total` : "logins"} />
+        <Tile label="Calls" value={m.total_calls} />
+        <Tile label="Bookings" value={m.total_bookings} />
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <Breakdown title="By plan" data={m.by_plan} />
+        <Breakdown title="By country" data={m.by_country} />
+        <Breakdown title="By language" data={m.by_language} />
+      </div>
+    </section>
+  );
+}
+
+function SupportRow({ m, onReplied }: { m: SupportMessage; onReplied: (row: SupportMessage) => void }) {
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  async function sendReply() {
+    if (!draft.trim()) {
+      setError("Write a reply first.");
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/support/${encodeURIComponent(m.id)}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reply: draft.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not send your reply.");
+        return;
+      }
+      setDraft("");
+      setEditing(false);
+      if (data.message) onReplied(data.message as SupportMessage);
+    } catch {
+      setError("Couldn't reach the server.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const replied = m.status === "replied" && m.admin_reply;
+
+  return (
+    <div className="rounded-xl border border-[#EDEEF1] bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[13px] font-bold text-[#161616]">{m.email || "Unknown sender"}</div>
+          {m.subject && <div className="mt-0.5 text-[12.5px] font-semibold text-[#2A2A2E]">{m.subject}</div>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+              replied ? "bg-[#EAF8EF] text-[#1C7A43]" : "bg-[#FFF3DB] text-[#9A6A00]"
+            }`}
+          >
+            {replied ? "Replied" : "Open"}
+          </span>
+          <span className="text-[11.5px] text-[#9AA0AB]">{fmtDate(m.created_at)}</span>
+        </div>
+      </div>
+
+      <div className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-[#F6F7F9] px-3 py-2 text-[13px] text-[#2A2A2E]">
+        {m.message}
+      </div>
+
+      {replied && !editing && (
+        <div className="mt-3 rounded-lg border border-[#D9E4FF] bg-[#F2F6FF] px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-cobalt">Your reply</span>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(m.admin_reply || "");
+                setEditing(true);
+              }}
+              className="text-[11.5px] font-semibold text-cobalt hover:underline"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#2A2A2E]">{m.admin_reply}</div>
+        </div>
+      )}
+
+      {(!replied || editing) && (
+        <div className="mt-3">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Write a reply… the customer sees this on their Support page."
+            className="min-h-[72px] w-full resize-y rounded-lg border border-[#E7E6EC] bg-white px-3 py-2 text-[13px] text-[#161616] outline-none focus:border-cobalt"
+          />
+          {error && <p className="mt-1.5 text-[12px] font-semibold text-[#B3541F]">{error}</p>}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={sendReply}
+              disabled={sending || !draft.trim()}
+              className="rounded-full bg-cobalt px-4 py-1.5 font-display text-[12.5px] font-bold text-white transition-opacity disabled:opacity-50"
+            >
+              {sending ? "Sending…" : replied ? "Update reply" : "Send reply"}
+            </button>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setDraft("");
+                  setError(null);
+                }}
+                className="text-[12.5px] font-semibold text-[#6B6B70] hover:text-[#161616]"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupportInbox() {
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [openCount, setOpenCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [onlyOpen, setOnlyOpen] = useState(false);
+
+  async function load() {
+    try {
+      const res = await fetch("/api/admin/support", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(true);
+        return;
+      }
+      setMessages(data.messages ?? []);
+      setOpenCount(data.open_count ?? 0);
+      setError(false);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onReplied(row: SupportMessage) {
+    setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
+    setOpenCount((c) => Math.max(0, c - 1));
+  }
+
+  const shown = onlyOpen ? messages.filter((m) => m.status !== "replied") : messages;
+
+  return (
+    <section className="mb-6 rounded-2xl border border-[#E7E6EC] bg-[#FBFBFC] p-5 shadow-[0_6px_18px_rgba(23,23,23,0.04)]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-[18px] font-bold tracking-[-0.01em] text-[#161616]">
+            Support inbox
+            {openCount > 0 && (
+              <span className="ml-2 rounded-full bg-[#FFF3DB] px-2 py-0.5 text-[12px] font-bold text-[#9A6A00]">
+                {openCount} open
+              </span>
+            )}
+          </h2>
+          <p className="mt-0.5 text-[12.5px] text-[#8E8E92]">Messages from customers. Replies show on their Support page.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-bold text-[#6B6B70]">
+            <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} className="h-4 w-4 accent-[#2F6BFF]" />
+            Open only
+          </label>
+          <button
+            type="button"
+            onClick={load}
+            className="rounded-lg border border-[#D7D9DF] bg-white px-3 py-1.5 font-display text-[12.5px] font-bold text-[#2A2A2E] hover:border-cobalt hover:text-cobalt"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-[13px] text-[#8E8E92]">Loading…</p>
+      ) : error ? (
+        <p className="rounded-xl border border-[#F5D6C6] bg-[#FDEFE7] px-3 py-2 text-[13px] font-semibold text-[#B3541F]">
+          Couldn&apos;t load support messages just now. Is the backend running?
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="text-[13px] text-[#8E8E92]">
+          {onlyOpen ? "No open messages — you're all caught up." : "No messages yet."}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {shown.map((m) => (
+            <SupportRow key={m.id} m={m} onReplied={onReplied} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function AdminView({ orgs, metrics, loadError }: { orgs: AdminOrg[]; metrics?: AdminMetrics | null; loadError?: boolean }) {
   const [baseUrl, setBaseUrl] = useLocal<string>(BASE_KEY, "");
   const [wiredMap, setWiredMap] = useLocal<Record<string, boolean>>(WIRED_KEY, {});
 
@@ -296,6 +546,8 @@ export default function AdminView({ orgs, loadError }: { orgs: AdminOrg[]; loadE
             Couldn&apos;t load businesses just now. Is the backend running?
           </p>
         )}
+        {metrics && <MetricsBar m={metrics} />}
+        <SupportInbox />
         <div className="mb-4 text-[13px] text-[#6B6B70]">
           {orgs.length} business{orgs.length === 1 ? "" : "es"} signed up
         </div>

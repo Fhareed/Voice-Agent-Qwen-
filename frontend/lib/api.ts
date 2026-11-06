@@ -142,6 +142,63 @@ export async function fetchAdminOrgs(session: Session): Promise<AdminOrg[]> {
   return data.orgs ?? [];
 }
 
+export interface AdminMetrics {
+  total_orgs: number;
+  new_7d: number;
+  new_30d: number;
+  total_calls: number;
+  total_bookings: number;
+  paid: number;
+  onboarded: number;
+  with_agent: number;
+  with_number: number;
+  active_7d: number | null;
+  total_users: number | null;
+  by_plan: Record<string, number>;
+  by_country: Record<string, number>;
+  by_language: Record<string, number>;
+}
+
+export async function fetchAdminMetrics(session: Session): Promise<AdminMetrics | null> {
+  const res = await fetch(`${BACKEND_URL}/admin/metrics`, {
+    headers: authHeaders(session),
+    cache: "no-store",
+  });
+  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 401) throw new AuthError("Not authorized for /admin/metrics");
+  if (!res.ok) return null;
+  const data = (await res.json()) as { metrics: AdminMetrics };
+  return data.metrics ?? null;
+}
+
+// ── Support / contact messages ─────────────────────────────────────
+export interface SupportMessage {
+  id: string;
+  org_id: string | null;
+  email: string | null;
+  subject: string | null;
+  message: string;
+  admin_reply: string | null;
+  status: string; // open | replied | closed
+  created_at: string | null;
+  replied_at: string | null;
+}
+
+/** Admin (founder-only): every support message across all orgs, newest first. */
+export async function fetchAdminSupport(
+  session: Session,
+): Promise<{ messages: SupportMessage[]; open_count: number }> {
+  const res = await fetch(`${BACKEND_URL}/admin/support`, {
+    headers: authHeaders(session),
+    cache: "no-store",
+  });
+  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 401) throw new AuthError("Not authorized for /admin/support");
+  if (!res.ok) throw new Error(`Backend /admin/support failed: ${res.status}`);
+  const data = (await res.json()) as { messages: SupportMessage[]; open_count: number };
+  return { messages: data.messages ?? [], open_count: data.open_count ?? 0 };
+}
+
 // ── Outbound campaigns (per org) ───────────────────────────────────
 export interface OutboundCampaignSummary {
   id: string;

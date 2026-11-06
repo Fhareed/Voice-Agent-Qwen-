@@ -3,8 +3,10 @@ import Link from "next/link";
 import {
   AdminForbiddenError,
   AuthError,
+  fetchAdminMetrics,
   fetchAdminOrgs,
   getSession,
+  type AdminMetrics,
   type AdminOrg,
 } from "@/lib/api";
 import AdminView from "@/components/AdminView";
@@ -16,6 +18,7 @@ export default async function AdminPage() {
   if (!session.token) redirect("/login");
 
   let orgs: AdminOrg[] = [];
+  let metrics: AdminMetrics | null = null;
   let forbidden = false;
   let loadError = false;
   try {
@@ -24,6 +27,13 @@ export default async function AdminPage() {
     if (e instanceof AuthError) redirect("/api/auth/logout");
     if (e instanceof AdminForbiddenError) forbidden = true;
     else loadError = true;
+  }
+  if (!forbidden) {
+    try {
+      metrics = await fetchAdminMetrics(session);
+    } catch {
+      // metrics are best-effort; the org list still renders without them.
+    }
   }
 
   if (forbidden) {
@@ -45,5 +55,5 @@ export default async function AdminPage() {
     );
   }
 
-  return <AdminView orgs={orgs} loadError={loadError} />;
+  return <AdminView orgs={orgs} metrics={metrics} loadError={loadError} />;
 }
