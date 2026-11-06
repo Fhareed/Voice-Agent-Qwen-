@@ -41,9 +41,21 @@ export default function Footer() {
             </a>
           </div>
         </div>
-        <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t-2 border-ink pt-6 text-[13px] font-semibold text-muted md:flex-row md:items-center">
-          <span>© 2026 Lumidesk. All rights reserved.</span>
-          <span>Made for businesses that refuse to miss a call.</span>
+        <div className="mt-10 border-t-2 border-ink pt-6">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 font-sans text-[13px] font-semibold text-muted">
+            <Link href="/legal/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/legal/terms" className="hover:text-ink">Terms</Link>
+            <Link href="/legal/dpa" className="hover:text-ink">DPA</Link>
+            <Link href="/legal/subprocessors" className="hover:text-ink">Sub-processors</Link>
+            <Link href="/legal/cookies" className="hover:text-ink">Cookies</Link>
+            <Link href="/legal/security" className="hover:text-ink">Security</Link>
+            <Link href="/legal/imprint" className="hover:text-ink">Imprint</Link>
+            <Link href="/legal/contact" className="hover:text-ink">Contact</Link>
+          </div>
+          <div className="mt-4 flex flex-col items-start justify-between gap-2 text-[13px] font-semibold text-muted md:flex-row md:items-center">
+            <span>© 2026 Lumidesk. All rights reserved.</span>
+            <span>Made for businesses that refuse to miss a call.</span>
+          </div>
         </div>
       </div>
     </footer>

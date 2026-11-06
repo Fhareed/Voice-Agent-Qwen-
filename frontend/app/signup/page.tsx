@@ -10,6 +10,9 @@ import { PillButton } from "@/components/marketing/ui";
 const FIELD =
   "w-full rounded-[14px] border-2 border-ink bg-cream px-4 py-3 font-sans text-[15px] text-ink outline-none transition-shadow focus:shadow-hard-sm placeholder:text-ink/40";
 
+// Which Terms/Privacy version the signer is accepting — recorded as proof of consent.
+const TERMS_VERSION = "2026-11-06";
+
 export default function SignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", business: "", email: "", password: "" });
@@ -18,6 +21,7 @@ export default function SignupPage() {
   const [confirm, setConfirm] = useState(false);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   function set<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -42,12 +46,16 @@ export default function SignupPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!agreed) {
+      setError("Please accept the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, terms_accepted: agreed, terms_version: TERMS_VERSION }),
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error || "Could not create your account.");
@@ -121,9 +129,23 @@ export default function SignupPage() {
             <label className="mb-1.5 block font-display text-[13px] font-bold text-ink">Password</label>
             <input type="password" autoComplete="new-password" className={FIELD} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="At least 8 characters" minLength={8} required />
           </div>
+          <label className="mt-5 flex items-start gap-2.5 font-sans text-[13.5px] text-ink/80">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-ink"
+            />
+            <span>
+              I agree to the{" "}
+              <Link href="/legal/terms" target="_blank" className="font-bold text-ink underline underline-offset-2">Terms of Service</Link>
+              {" "}and{" "}
+              <Link href="/legal/privacy" target="_blank" className="font-bold text-ink underline underline-offset-2">Privacy Policy</Link>.
+            </span>
+          </label>
           {error && <p className="mt-3 font-sans text-[13px] font-semibold text-flame">{error}</p>}
           <div className="mt-6">
-            <PillButton type="submit" variant="fill" disabled={loading} className="w-full">
+            <PillButton type="submit" variant="fill" disabled={loading || !agreed} className="w-full">
               {loading ? "Creating…" : "Create account"}
             </PillButton>
           </div>

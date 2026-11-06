@@ -150,6 +150,9 @@ class SignupIn(BaseModel):
     email: str
     password: str
     name: str = ""
+    business: str = ""
+    terms_accepted: bool = False   # must be true: the signer ticked "I agree"
+    terms_version: str = ""        # which Terms/Privacy version they accepted
 
 
 @app.get("/health")
@@ -190,8 +193,19 @@ def create_lead(body: LeadIn, request: Request):
 def auth_signup(creds: SignupIn):
     if len(creds.password or "") < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    # Consent gate: no account without accepting the Terms + Privacy Policy. We also
+    # enforce it server-side (not just in the UI) so the acceptance is real, and we
+    # store the version + timestamp as proof on the user record.
+    if not creds.terms_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="Please accept the Terms of Service and Privacy Policy to create your account.",
+        )
     try:
-        res = sign_up(creds.email, creds.password, name=creds.name)
+        res = sign_up(
+            creds.email, creds.password, name=creds.name,
+            terms_version=creds.terms_version or "unversioned",
+        )
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     user = getattr(res, "user", None)

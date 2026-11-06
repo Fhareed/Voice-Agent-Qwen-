@@ -34,16 +34,26 @@ def _client():
     return _supabase
 
 
-def sign_up(email: str, password: str, name: str = ""):
+def sign_up(email: str, password: str, name: str = "", terms_version: str = ""):
     """Create a new user account via Supabase Auth.
 
-    When a name is given, pass it as user metadata (options.data) so Supabase
-    stores it on the account; an empty name sends no metadata (backward compatible).
+    Name and consent are stored as user metadata (options.data) so Supabase keeps
+    them on the account. When the signer accepts the Terms + Privacy Policy, we
+    record WHICH version they accepted and a server-side timestamp — that pair is
+    our durable proof of consent. An empty name/terms sends no metadata (backward
+    compatible).
     """
     credentials = {"email": email, "password": password}
+    data = {}
     name = (name or "").strip()
     if name:
-        credentials["options"] = {"data": {"name": name}}
+        data["name"] = name
+    if terms_version:
+        from datetime import datetime, timezone
+        data["terms_version"] = terms_version
+        data["terms_accepted_at"] = datetime.now(timezone.utc).isoformat()
+    if data:
+        credentials["options"] = {"data": data}
     return _client().auth.sign_up(credentials)
 
 

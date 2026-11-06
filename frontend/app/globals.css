@@ -552,3 +552,20 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .content .numempty .ic .lu{width:22px;height:22px}
 .content .numempty b{font-size:14px;color:var(--ink-700);font-weight:700}
 .content .numempty span{font-size:12.5px;color:var(--ink-400);font-weight:500}
+
+/* ── Legal pages: readable rendering of the markdown docs under /legal/* ──── */
+.legal-doc{color:#2A2A2E;font-family:var(--font);line-height:1.65;font-size:15px}
+.legal-doc h1{font-size:30px;font-weight:800;letter-spacing:-.02em;color:#161616;margin:0 0 8px}
+.legal-doc h2{font-size:20px;font-weight:700;letter-spacing:-.01em;color:#161616;margin:28px 0 10px}
+.legal-doc h3{font-size:16px;font-weight:700;color:#161616;margin:20px 0 8px}
+.legal-doc p{margin:0 0 12px}
+.legal-doc strong{font-weight:700;color:#161616}
+.legal-doc a{color:#2F6BFF;text-decoration:underline;text-underline-offset:2px}
+.legal-doc ul,.legal-doc ol{margin:0 0 12px;padding-left:22px}
+.legal-doc li{margin:4px 0}
+.legal-doc hr{border:0;border-top:1px solid #E2E1E8;margin:24px 0}
+.legal-doc code{background:#F1F0F5;border-radius:5px;padding:1px 5px;font-size:13px}
+.legal-doc table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;display:block;overflow-x:auto}
+.legal-doc th,.legal-doc td{border:1px solid #E2E1E8;padding:8px 10px;text-align:left;vertical-align:top}
+.legal-doc th{background:#F6F5FA;font-weight:700}
+.legal-doc blockquote{border-left:3px solid #E2E1E8;margin:12px 0;padding:2px 0 2px 14px;color:#6B6B70}

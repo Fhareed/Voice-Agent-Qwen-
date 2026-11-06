@@ -29,8 +29,9 @@ const VOICE_OPTIONS: Record<string, { id: string; label: string }[]> = {
     { id: "11labs-Amy", label: "Amy · female (UK)" },
   ],
   Finnish: [
-    { id: "custom_voice_72ba08703a7437fc9ce47245c1", label: "Finnish · female" },
-    { id: "custom_voice_37f984c8966fc689f2f7ce4e4a", label: "Finnish · male" },
+    { id: "custom_voice_7097adbbf12a6d97b8d55bb6c0", label: "Soili · female, neutral" },
+    { id: "custom_voice_340056c2e67032400c2fb78ad0", label: "Aapo · male, friendly" },
+    { id: "custom_voice_c445a7195cb78d2076a0da2a49", label: "Matti · male, conversational" },
   ],
   Arabic: [
     { id: "custom_voice_85434b9ef8fd00d6e26db80f26", label: "Fahad · Saudi male, warm" },
