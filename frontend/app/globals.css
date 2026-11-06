@@ -67,8 +67,13 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 @media (max-width:1040px){.panel{grid-template-columns:70px 1fr}.sideicon{width:42px;height:42px}}
 @media (max-width:760px){
   .panel{grid-template-columns:1fr}
-  .side{flex-direction:row;gap:6px;padding:12px;overflow-x:auto}
+  /* Phone: nav becomes a clean top bar — evenly spaced, not edge-to-edge, with a
+     hairline under it; the two non-functional "coming soon" items are hidden. */
+  .side{flex-direction:row;justify-content:space-around;gap:4px;padding:9px 12px;
+    overflow-x:auto;box-shadow:inset 0 -1px 0 rgba(255,255,255,.07)}
   .side .logo,.side .sp,.side .me{display:none}
+  .side div.sideicon{display:none}
+  .sideicon{flex:0 0 auto}
 }
 
 /* ========================= DASHBOARD (.content) ========================= */
@@ -221,7 +226,7 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .main .spark i:nth-child(odd){background:var(--s1,#88a)}
 
 .main .cal{background:var(--card);border-radius:20px;box-shadow:var(--shadow-card);overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
-.main .dayhead{display:grid;grid-template-columns:54px repeat(5,1fr);border-bottom:1px solid var(--line)}
+.main .dayhead{display:grid;grid-template-columns:54px repeat(7,1fr);border-bottom:1px solid var(--line)}
 .main .dayhead .tz{font-size:10.5px;color:var(--ink-400);font-weight:600;display:flex;align-items:flex-end;justify-content:center;padding:0 0 10px}
 .main .dayhead .dh{padding:12px 14px;border-left:1px solid var(--line);display:flex;align-items:center;gap:9px}
 .main .dayhead .dh .dnum{font-size:20px;font-weight:700;letter-spacing:-.02em;color:var(--ink-700)}
@@ -230,7 +235,7 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .main .dayhead .dh .dmeta span{display:block;font-size:11px;color:var(--ink-400);font-weight:500}
 .main .dayhead .dh.today .dnum{background:var(--accent);color:#fff;border-radius:10px;padding:1px 9px}
 .main .dayhead .dh.today .dmeta b{color:var(--accent)}
-.main .calbody{display:grid;grid-template-columns:54px repeat(5,1fr);overflow:auto;position:relative}
+.main .calbody{display:grid;grid-template-columns:54px repeat(7,1fr);overflow:auto;position:relative}
 .main .timecol{position:relative}
 .main .timecol .tl{height:var(--hour);position:relative}
 .main .timecol .tl span{position:absolute;top:-7px;right:8px;font-size:10.5px;color:var(--ink-400);font-weight:600}
@@ -300,9 +305,12 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .main .fact .l{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-400);font-weight:700}
 .main .fact .v{font-size:13.5px;color:var(--ink-700);font-weight:600;letter-spacing:-.01em;margin-top:1px}
 
-@media (max-width:620px){
-  .main .dayhead,.main .calbody{grid-template-columns:44px repeat(5,minmax(120px,1fr))}
-  .main .calbody{overflow-x:auto}
+/* Week calendar on phones/small tablets: the 7 day-columns can't shrink to a
+   readable size, so make the whole calendar scroll horizontally inside its card
+   (header + body move together and stay aligned) with sensible column widths. */
+@media (max-width:820px){
+  .main .cal{overflow-x:auto}
+  .main .dayhead,.main .calbody{min-width:720px}
 }
 
 /* ── Brand family: the display typeface on headings + big numbers ──
@@ -410,6 +418,17 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 /* ========================= KNOWLEDGE BASE (.content) ========================= */
 .content .kbgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
 .content .kbmain{min-width:0}
+/* Every stacked grid child must be allowed to shrink below its content width,
+   or on phones it blows past the viewport and gets clipped by .panel's overflow.
+   Applies to the kbgrid (numbers/knowledge/calendar/outbound) and dashboard grid. */
+.content .kbgrid > *,
+.content .grid > *{min-width:0}
+/* Phone: let a number/list row wrap so the value stays readable and the status
+   pill + action button drop to a second line instead of crushing it to "+…". */
+@media (max-width:560px){
+  .content .kbrow{flex-wrap:wrap}
+  .content .kbrow-t{flex:1 0 140px}
+}
 @media (max-width:1040px){.content .kbgrid{grid-template-columns:1fr}}
 
 .content .kbstatus{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--hair);border-radius:16px;padding:16px;box-shadow:var(--shadow-card)}
@@ -433,7 +452,7 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
 .content .kbfiledrop .lu{width:26px;height:26px;color:var(--accent);margin:0 auto 8px}
 .content .kbfile{font-size:13.5px;color:var(--ink-700);font-family:var(--font)}
 .content .kbhint{font-size:12.5px;color:var(--ink-400);margin:0}
-.content .kbbtn{align-self:flex-start;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:12px 20px;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;box-shadow:0 8px 18px rgba(47,107,255,.24)}
+.content .kbbtn{align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:12px 20px;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;box-shadow:0 8px 18px rgba(47,107,255,.24)}
 .content .kbbtn:hover:not(:disabled){filter:brightness(1.04)}
 .content .kbbtn:disabled{opacity:.55;cursor:default;box-shadow:none}
 .content .kbmsg{margin-top:13px;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:600}
@@ -507,7 +526,8 @@ body{background:#FFF8EE;color:var(--board-fg);font-family:var(--font);line-heigh
    SIP import form, with a chevron that rotates when open. */
 .content .kbdisc{width:100%;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;color:var(--ink-900);background:var(--card);border:1.5px solid var(--hair);border-radius:12px;padding:12px 14px;cursor:pointer;font-family:var(--font);box-shadow:var(--shadow-card);margin-bottom:14px}
 .content .kbdisc:hover{background:#F5F6FA;border-color:var(--ink-400)}
-.content .kbdisc .chev{margin-left:auto;transition:transform .15s ease;color:var(--ink-500)}
+.content .kbdisc .disc-label{flex:1;text-align:left;line-height:1.3}
+.content .kbdisc .chev{flex:0 0 auto;transition:transform .15s ease;color:var(--ink-500)}
 .content .kbdisc.open{background:var(--ink-900);color:#fff;border-color:transparent}
 .content .kbdisc.open .chev{transform:rotate(180deg);color:#fff}
 

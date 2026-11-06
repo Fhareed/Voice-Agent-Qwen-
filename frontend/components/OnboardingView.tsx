@@ -6,7 +6,10 @@ import Icon from "./Icon";
 import type { Settings } from "@/lib/api";
 
 const INDUSTRIES = ["Plumbing & trades", "Electrical", "Salon & beauty", "Dental & clinic", "Restaurant", "Other"];
-const LANGUAGES = ["English", "Finnish", "Swedish", "German", "Spanish", "French"];
+const LANGUAGES = ["English", "Finnish", "Swedish", "Arabic", "German", "Spanish", "French"];
+// Country sets which privacy regime governs the business's calls. EU/EEA = GDPR.
+const COUNTRIES_EU = ["Finland", "Sweden", "Denmark", "Norway", "Iceland", "Estonia", "Latvia", "Lithuania", "Germany", "Netherlands", "Belgium", "Luxembourg", "France", "Ireland", "Austria", "Poland", "Czechia", "Slovakia", "Slovenia", "Hungary", "Croatia", "Romania", "Bulgaria", "Greece", "Italy", "Spain", "Portugal", "Malta", "Cyprus", "Liechtenstein"];
+const COUNTRIES_OTHER = ["United Kingdom", "Switzerland", "United States", "Canada", "Australia", "United Arab Emirates", "Saudi Arabia", "Qatar", "Kuwait", "Bahrain", "Oman", "Turkey", "Other"];
 
 const PLANS: { id: "starter" | "pro"; name: string; monthly: number; blurb: string; badge?: string }[] = [
   { id: "starter", name: "Starter", monthly: 79, blurb: "Up to 100 answered calls a month" },
@@ -55,6 +58,7 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
   const [pricing, setPricing] = useState(str(s, "pricing"));
   const [area, setArea] = useState(str(s, "service_area"));
   const [language, setLanguage] = useState(str(s, "default_language", "English"));
+  const [country, setCountry] = useState(str(s, "country", "Finland"));
   const [alwaysOpen, setAlwaysOpen] = useState(s.always_open !== false);
   const [from, setFrom] = useState("09:00");
   const [to, setTo] = useState("17:00");
@@ -77,6 +81,7 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       pricing,
       service_area: area,
       default_language: language,
+      country,
       always_open: alwaysOpen,
     };
     if (!alwaysOpen) patch.hours = buildHours(from, to, openSat);
@@ -180,12 +185,26 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className={LABEL}>Main language</label>
-            <select className={INPUT} value={language} onChange={(e) => setLanguage(e.target.value)}>
-              {LANGUAGES.map((l) => <option key={l}>{l}</option>)}
-            </select>
-            <p className="mt-1.5 text-[12px] text-[#8E8E92]">It can handle other languages too — you can add them later.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={LABEL}>Main language</label>
+              <select className={INPUT} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                {LANGUAGES.map((l) => <option key={l}>{l}</option>)}
+              </select>
+              <p className="mt-1.5 text-[12px] text-[#8E8E92]">It can handle other languages too — you can add them later.</p>
+            </div>
+            <div>
+              <label className={LABEL}>Country</label>
+              <select className={INPUT} value={country} onChange={(e) => setCountry(e.target.value)}>
+                <optgroup label="European Union / EEA (GDPR applies)">
+                  {COUNTRIES_EU.map((c) => <option key={c}>{c}</option>)}
+                </optgroup>
+                <optgroup label="Other regions">
+                  {COUNTRIES_OTHER.map((c) => <option key={c}>{c}</option>)}
+                </optgroup>
+              </select>
+              <p className="mt-1.5 text-[12px] text-[#8E8E92]">Where your business operates — sets the privacy rules for your calls.</p>
+            </div>
           </div>
 
           <div className="mt-5 rounded-xl bg-[#F6F7F9] p-4">

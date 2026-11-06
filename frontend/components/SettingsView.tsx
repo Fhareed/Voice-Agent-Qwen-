@@ -19,8 +19,42 @@ const TIMEZONES = [
   "UTC", "America/New_York", "America/Los_Angeles", "Asia/Dubai",
 ];
 const INDUSTRIES = ["Plumbing & trades", "Electrical", "Salon & beauty", "Dental & clinic", "Restaurant", "Other"];
-const LANGUAGES = ["English", "Finnish", "Swedish", "German", "Spanish", "French"];
-const VOICES = ["Warm · female", "Professional · female", "Friendly · male", "Professional · male"];
+const LANGUAGES = ["English", "Finnish", "Swedish", "Arabic", "German", "Spanish", "French"];
+// Real Retell voice ids per language (from this account's list-voices). The option
+// VALUE is the voice_id provisioning stores; the label is what the owner sees.
+const VOICE_OPTIONS: Record<string, { id: string; label: string }[]> = {
+  English: [
+    { id: "cartesia-Grace", label: "Grace · warm female (US)" },
+    { id: "11labs-Brian", label: "Brian · male (US)" },
+    { id: "11labs-Amy", label: "Amy · female (UK)" },
+  ],
+  Finnish: [
+    { id: "custom_voice_72ba08703a7437fc9ce47245c1", label: "Finnish · female" },
+    { id: "custom_voice_37f984c8966fc689f2f7ce4e4a", label: "Finnish · male" },
+  ],
+  Arabic: [
+    { id: "custom_voice_85434b9ef8fd00d6e26db80f26", label: "Fahad · Saudi male, warm" },
+    { id: "custom_voice_57d1f0f665bf3fe106c36c5edd", label: "Ziyad · Saudi male, natural" },
+    { id: "custom_voice_c09362da2afeb68572cfdb9eab", label: "Arabic · female" },
+  ],
+  Swedish: [
+    { id: "11labs-Jenny", label: "Jenny · female (multilingual)" },
+    { id: "11labs-Brian", label: "Brian · male (multilingual)" },
+  ],
+  German: [
+    { id: "11labs-Carola", label: "Carola · female (DE)" },
+    { id: "cartesia-Eva", label: "Eva · female (DE)" },
+  ],
+  Spanish: [
+    { id: "11labs-Santiago", label: "Santiago · male (ES)" },
+    { id: "cartesia-Elena", label: "Elena · female (ES)" },
+  ],
+  French: [
+    { id: "cartesia-Pierre", label: "Pierre · male (FR)" },
+    { id: "cartesia-Emma", label: "Emma · female (FR)" },
+  ],
+};
+const voicesFor = (lang: string) => VOICE_OPTIONS[lang] ?? VOICE_OPTIONS.English;
 
 type DayHours = { open: boolean; from: string; to: string };
 interface Form {
@@ -33,6 +67,7 @@ interface Form {
   hours: Record<string, DayHours>;
   default_language: string;
   voice: string;
+  voice_id: string;
   languages_note: string;
   notify_email: string;
   notify_leads: boolean;
@@ -63,6 +98,7 @@ function defaults(s: Settings, orgName?: string | null): Form {
     hours,
     default_language: g("default_language", "English"),
     voice: g("voice", "Warm · female"),
+    voice_id: g("voice_id", voicesFor(g("default_language", "English"))[0].id),
     languages_note: g("languages_note", ""),
     notify_email: g("notify_email", ""),
     notify_leads: g("notify_leads", true),
@@ -244,15 +280,30 @@ export default function SettingsView({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={LABEL}>Default language</label>
-                  <select className={INPUT} value={form.default_language} onChange={(e) => set("default_language", e.target.value)}>
+                  <select
+                    className={INPUT}
+                    value={form.default_language}
+                    onChange={(e) => {
+                      const lang = e.target.value;
+                      const opts = voicesFor(lang);
+                      // Keep the current voice only if it belongs to the new language;
+                      // otherwise snap to that language's first voice.
+                      setForm((f) => ({
+                        ...f,
+                        default_language: lang,
+                        voice_id: opts.some((o) => o.id === f.voice_id) ? f.voice_id : opts[0].id,
+                      }));
+                    }}
+                  >
                     {LANGUAGES.map((l) => <option key={l}>{l}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className={LABEL}>Voice</label>
-                  <select className={INPUT} value={form.voice} onChange={(e) => set("voice", e.target.value)}>
-                    {VOICES.map((v) => <option key={v}>{v}</option>)}
+                  <select className={INPUT} value={form.voice_id} onChange={(e) => set("voice_id", e.target.value)}>
+                    {voicesFor(form.default_language).map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                   </select>
+                  <p className="mt-2 text-[12.5px] text-[#8E8E92]">Only voices that speak the selected language are shown.</p>
                 </div>
               </div>
               <div className="mt-4">

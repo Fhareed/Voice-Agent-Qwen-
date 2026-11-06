@@ -296,7 +296,7 @@ export default function NumberView({
               aria-expanded={advanced}
             >
               <Icon name="i-wrench" />
-              Import your number (SIP / advanced)
+              <span className="disc-label">Import your number (SIP / advanced)</span>
               <Icon name="i-chevron-down" className="lu chev" />
             </button>
 

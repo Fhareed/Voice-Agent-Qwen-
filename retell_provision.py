@@ -118,8 +118,11 @@ HOW YOU TALK (sound human, not like an AI)
 - One thing at a time: say one thing, then pause for their answer. Let the caller finish — never talk over them or rush ahead while they still have a question.
 - If you didn't catch something or aren't sure what they said — especially a day, time, or name — ask them to repeat it ("sorry, could you say that again?"). Never guess, and never book a time unless you're certain which one they chose.
 
-OPENING
-Open warm and short, e.g. "{name}, this is {agent} — how can I help?" (vary it slightly each call). If the caller opens with small talk, answer it warmly first before moving to business.
+OPENING — ALWAYS disclose first (legally required, every call)
+- Your very first turn MUST, before anything else, make two things clear — warmly, in {lang}, in one or two short natural sentences: (1) they're speaking with an automated AI assistant for {name}, not a real person; and (2) the call is recorded and transcribed to help them and book their appointment. Then invite them on, e.g. "…if you'd rather speak to a person or not be recorded, just say so — otherwise, how can I help?"
+- Vary the wording slightly each call, but NEVER skip the AI disclosure or the recording notice — both are required on every single call.
+- If the caller says they'd prefer a human or don't want to be recorded, acknowledge warmly, stop trying to book, take their name, and say a team member will follow up (their number is captured automatically).
+- After the disclosure, if the caller opens with small talk, answer it warmly first before moving to business.
 
 MEMORY (never ask twice)
 - You already have whatever the caller gave you — name, the problem, the time. Never ask for any of it again.
@@ -209,17 +212,31 @@ def _tools(base: str, secret: str, org_token: str) -> list:
     ]
 
 
-_LANG_CODES = {"english": "en-US", "finnish": "fi-FI", "swedish": "sv-SE", "german": "de-DE"}
+# Retell `language` codes (STT+TTS). One agent = one language (no "multi").
+_LANG_CODES = {
+    "english": "en-US", "finnish": "fi-FI", "swedish": "sv-SE", "german": "de-DE",
+    "arabic": "ar-SA", "spanish": "es-ES", "french": "fr-FR",
+}
 
-# Maps the voice labels the Settings page saves (SettingsView.tsx `VOICES`) to real
-# Retell voice ids. These are sensible Cartesia defaults in the same style as the
-# existing "cartesia-Grace" default — adjust them to the business's preferred Retell
-# voices (copy the exact ids from an agent in the Retell dashboard).
-VOICE_IDS = {
-    "Warm · female": "cartesia-Grace",
-    "Professional · female": "cartesia-Sophie",
-    "Friendly · male": "cartesia-Oliver",
-    "Professional · male": "cartesia-Marcus",
+# Legacy label→id fallback for orgs provisioned before the voice picker stored a
+# real Retell voice id. Only the VERIFIED "cartesia-Grace" remains — the previous
+# cartesia-Sophie/Oliver/Marcus entries were unverified guesses and were removed so
+# we never provision an agent with a voice id Retell doesn't have. New provisioning
+# reads the real voice id straight from settings["voice_id"] (set by the picker).
+VOICE_IDS = {"Warm · female": "cartesia-Grace"}
+
+# A sensible default voice per language, so an org that picked a language but no
+# specific voice still gets a voice that actually speaks that language (never an
+# English voice reading Arabic). These are REAL ids from this Retell account's
+# list-voices; override any with the RETELL_DEFAULT_VOICE_ID env if needed.
+_DEFAULT_VOICE_BY_LANG = {
+    "english": "cartesia-Grace",
+    "finnish": "custom_voice_72ba08703a7437fc9ce47245c1",   # Finnish female
+    "arabic": "custom_voice_85434b9ef8fd00d6e26db80f26",    # Fahad — Saudi male, warm
+    "swedish": "11labs-Jenny",
+    "german": "11labs-Carola",
+    "spanish": "11labs-Santiago",
+    "french": "cartesia-Pierre",
 }
 
 
@@ -231,11 +248,17 @@ def provision_org(org_id: str, settings: dict, org_name: str, voice_id: str | No
         raise ProvisionError(
             "TOOLS_SHARED_SECRET is not set — the booking tools would reject the agent's calls."
         )
-    voice = (voice_id or VOICE_IDS.get(_s(settings, "voice"))
-             or os.getenv("RETELL_DEFAULT_VOICE_ID") or "cartesia-Grace")
     model = os.getenv("RETELL_LLM_MODEL", "gpt-5.6-terra")
     lang = _s(settings or {}, "default_language", "English")
     lang_code = _LANG_CODES.get(lang.lower(), "en-US")
+    voice = (
+        voice_id                                        # explicit override (caller-supplied)
+        or _s(settings, "voice_id")                     # the REAL Retell voice id the picker stored
+        or VOICE_IDS.get(_s(settings, "voice"))         # legacy label → verified id
+        or _DEFAULT_VOICE_BY_LANG.get(lang.lower())     # a voice that speaks the chosen language
+        or os.getenv("RETELL_DEFAULT_VOICE_ID")
+        or "cartesia-Grace"
+    )
 
     # Per-org tools token: each agent is bound to its own org server-side, sent
     # as the X-LumiDesk-Org-Token header on every tool call (verified in tools_api).
