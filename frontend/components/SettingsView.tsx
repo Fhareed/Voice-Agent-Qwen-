@@ -152,8 +152,28 @@ export default function SettingsView({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   const dirty = JSON.stringify(form) !== initialJson.current;
+
+  // Open the Stripe Customer Portal — manage/cancel subscription, update card.
+  async function manageBilling() {
+    setBillingLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        window.location.href = data.url as string;
+        return;
+      }
+      setError(data.error || "Couldn't open billing just now. Try again.");
+    } catch {
+      setError("Couldn't reach the server. Try again.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -339,17 +359,25 @@ export default function SettingsView({
             <Section title="Plan" desc="Your current Lumidesk plan.">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#F6F7F9] px-4 py-3.5">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-cobalt/10 text-cobalt">
-                    <Icon name="i-sparkles" className="lu h-5 w-5" />
+                  <span
+                    className="rounded-xl bg-cobalt/10 text-cobalt"
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, flex: "0 0 auto" }}
+                  >
+                    <Icon name="i-sparkles" className="lu" style={{ width: 20, height: 20 }} />
                   </span>
                   <div>
                     <div className="font-display text-[16px] font-bold text-[#161616]">{form.plan}</div>
                     <div className="text-[12.5px] text-[#8E8E92]">Billed monthly · cancel anytime</div>
                   </div>
                 </div>
-                <a href="/#pricing" className="rounded-full border-2 border-[#161616] px-4 py-2 text-[13px] font-bold text-[#161616] transition-colors hover:bg-[#161616] hover:text-white">
-                  Manage plan
-                </a>
+                <button
+                  type="button"
+                  onClick={manageBilling}
+                  disabled={billingLoading}
+                  className="rounded-full border-2 border-[#161616] px-4 py-2 text-[13px] font-bold text-[#161616] transition-colors hover:bg-[#161616] hover:text-white disabled:opacity-50"
+                >
+                  {billingLoading ? "Opening…" : "Manage subscription"}
+                </button>
               </div>
             </Section>
           </div>

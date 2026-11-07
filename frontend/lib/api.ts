@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import type { Booking, Call, Org, Session } from "./types";
 
+// Re-export Session so consumers can import it from "@/lib/api" alongside the
+// other admin/session types (keeps a single import surface).
+export type { Session } from "./types";
+
 /**
  * The FastAPI backend base URL. Server-side only — this is never shipped to the
  * browser, so the browser never talks to FastAPI directly (no CORS, no token in
@@ -25,6 +29,13 @@ function authHeaders(session: Session): Record<string, string> {
   const h: Record<string, string> = {};
   if (session.token) h["Authorization"] = `Bearer ${session.token}`;
   if (session.org) h["X-Org-Id"] = session.org;
+  // Admin password session (when configured) — harmless on non-admin endpoints.
+  try {
+    const adm = cookies().get("ld_admin")?.value;
+    if (adm) h["X-Admin-Token"] = adm;
+  } catch {
+    /* cookies() only available in a request scope */
+  }
   return h;
 }
 
@@ -130,16 +141,33 @@ export interface AdminOrg {
 /** Thrown when the backend returns 403 — logged in, but not an admin. */
 export class AdminForbiddenError extends Error {}
 
+/** Thrown when the caller is an admin but hasn't entered the admin password yet
+ * (or the admin session expired). The UI sends them to the admin login. */
+export class AdminSessionError extends Error {}
+
+/** On a 403 from an admin endpoint, decide whether it's "not an admin" (dead
+ * end → AdminForbiddenError) or "needs the admin password" (→ AdminSessionError). */
+async function throwAdmin403(res: Response): Promise<never> {
+  const d = (await res.json().catch(() => ({}))) as { detail?: string };
+  if (d?.detail === "admin_session_required") throw new AdminSessionError();
+  throw new AdminForbiddenError("Admin access only.");
+}
+
 export async function fetchAdminOrgs(session: Session): Promise<AdminOrg[]> {
   const res = await fetch(`${BACKEND_URL}/admin/orgs`, {
     headers: authHeaders(session),
     cache: "no-store",
   });
-  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 403) return throwAdmin403(res);
   if (res.status === 401) throw new AuthError("Not authorized for /admin/orgs");
   if (!res.ok) throw new Error(`Backend /admin/orgs failed: ${res.status}`);
   const data = (await res.json()) as { orgs: AdminOrg[] };
   return data.orgs ?? [];
+}
+
+export interface CallsPerDay {
+  date: string; // YYYY-MM-DD
+  count: number;
 }
 
 export interface AdminMetrics {
@@ -148,6 +176,8 @@ export interface AdminMetrics {
   new_30d: number;
   total_calls: number;
   total_bookings: number;
+  calls_7d: number;
+  bookings_7d: number;
   paid: number;
   onboarded: number;
   with_agent: number;
@@ -157,6 +187,7 @@ export interface AdminMetrics {
   by_plan: Record<string, number>;
   by_country: Record<string, number>;
   by_language: Record<string, number>;
+  calls_per_day: CallsPerDay[];
 }
 
 export async function fetchAdminMetrics(session: Session): Promise<AdminMetrics | null> {
@@ -164,7 +195,7 @@ export async function fetchAdminMetrics(session: Session): Promise<AdminMetrics 
     headers: authHeaders(session),
     cache: "no-store",
   });
-  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 403) return throwAdmin403(res);
   if (res.status === 401) throw new AuthError("Not authorized for /admin/metrics");
   if (!res.ok) return null;
   const data = (await res.json()) as { metrics: AdminMetrics };
@@ -201,7 +232,7 @@ export async function fetchAdminSupport(
     headers: authHeaders(session),
     cache: "no-store",
   });
-  if (res.status === 403) throw new AdminForbiddenError("Admin access only.");
+  if (res.status === 403) return throwAdmin403(res);
   if (res.status === 401) throw new AuthError("Not authorized for /admin/support");
   if (!res.ok) throw new Error(`Backend /admin/support failed: ${res.status}`);
   const data = (await res.json()) as { threads: SupportThread[]; open_count: number };

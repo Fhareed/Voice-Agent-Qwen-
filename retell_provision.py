@@ -231,7 +231,7 @@ VOICE_IDS = {"Warm · female": "cartesia-Grace"}
 # list-voices; override any with the RETELL_DEFAULT_VOICE_ID env if needed.
 _DEFAULT_VOICE_BY_LANG = {
     "english": "cartesia-Grace",
-    "finnish": "custom_voice_72ba08703a7437fc9ce47245c1",   # Finnish female
+    "finnish": "custom_voice_7097adbbf12a6d97b8d55bb6c0",   # Soili — Finnish female, neutral
     "arabic": "custom_voice_85434b9ef8fd00d6e26db80f26",    # Fahad — Saudi male, warm
     "swedish": "11labs-Jenny",
     "german": "11labs-Carola",

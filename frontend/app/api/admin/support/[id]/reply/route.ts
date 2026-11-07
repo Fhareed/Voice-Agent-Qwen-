@@ -6,6 +6,7 @@ import { BACKEND_URL } from "@/lib/api";
 // the session token; the backend enforces ADMIN_EMAILS. `id` is the thread id.
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const token = cookies().get("ld_token")?.value;
+  const admin = cookies().get("ld_admin")?.value;
   if (!token) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
@@ -18,7 +19,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const r = await fetch(`${BACKEND_URL}/admin/support/${encodeURIComponent(params.id)}/reply`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(admin ? { "X-Admin-Token": admin } : {}) },
       body: JSON.stringify(body),
       cache: "no-store",
     });

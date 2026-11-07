@@ -34,8 +34,10 @@ import retell_provision
 import settings_store
 
 PLAN_LOOKUP = {"starter": "plan_starter_eur", "pro": "plan_pro_eur"}
+PLAN_LOOKUP_YEARLY = {"starter": "plan_starter_eur_yearly", "pro": "plan_pro_eur_yearly"}
 SETUP_LOOKUP = "setup_fee_eur"
 OUTBOUND_LOOKUP = "addon_outbound_eur"
+OUTBOUND_LOOKUP_YEARLY = "addon_outbound_eur_yearly"
 
 _price_cache: dict = {}
 
@@ -58,6 +60,13 @@ def _stripe():
 
 def _app_url() -> str:
     return (os.getenv("PUBLIC_APP_URL") or "http://localhost:3000").rstrip("/")
+
+
+def _waive_setup_fee() -> bool:
+    """Founding-customer offer: when WAIVE_SETUP_FEE is on, the one-time setup fee
+    is skipped at checkout for everyone. Flip it off when the founding period ends
+    (and update the homepage copy to match)."""
+    return (os.getenv("WAIVE_SETUP_FEE") or "").strip().lower() in ("1", "true", "yes")
 
 
 def _sv(obj, key, default=None):
@@ -84,51 +93,69 @@ def _price_by_lookup(lookup_key: str):
     return pid
 
 
-def _plan_price_id(plan: str) -> str:
-    lookup = PLAN_LOOKUP.get((plan or "pro").lower())
+def _norm_interval(interval: str) -> str:
+    return "year" if (interval or "month").lower() in ("year", "yearly", "annual", "annually") else "month"
+
+
+def _plan_price_id(plan: str, interval: str = "month") -> str:
+    plan = (plan or "pro").lower()
+    interval = _norm_interval(interval)
+    table = PLAN_LOOKUP_YEARLY if interval == "year" else PLAN_LOOKUP
+    lookup = table.get(plan)
     pid = _price_by_lookup(lookup) if lookup else None
-    if not pid:
-        pid = os.getenv("STRIPE_PRICE_ID")  # legacy fallback
+    if not pid and interval == "month":
+        pid = os.getenv("STRIPE_PRICE_ID")  # legacy monthly fallback
     if not pid:
         raise BillingError(
-            f"No Stripe price for plan '{plan}'. Run scripts/stripe_setup_prices.py to create the "
-            "plan prices (or set STRIPE_PRICE_ID)."
+            f"No Stripe {interval}ly price for plan '{plan}'. Run scripts/stripe_setup_prices.py "
+            "to create the plan prices."
         )
     return pid
 
 
-def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", outbound: bool = False) -> str:
-    """Create a subscription Checkout Session (plan + one-time setup fee). Returns the URL."""
+def create_checkout(
+    org_id: str, business_name: str, email, plan: str = "pro",
+    outbound: bool = False, interval: str = "month",
+) -> str:
+    """Create a subscription Checkout Session (plan + one-time setup fee). Returns the URL.
+    `interval` is "month" or "year" (yearly = 2 months free)."""
     stripe = _stripe()
     app_url = _app_url()
     settings = settings_store.get_settings(org_id)
     if settings.get("stripe_subscription_id"):
         raise BillingError("You already have an active subscription — manage it from your dashboard.")
     plan = (plan or "pro").lower()
+    interval = _norm_interval(interval)
 
-    line_items = [{"price": _plan_price_id(plan), "quantity": 1}]
+    line_items = [{"price": _plan_price_id(plan, interval), "quantity": 1}]
 
-    # One-time setup fee on the first invoice, unless this org already paid it.
-    if not settings.get("setup_fee_paid"):
+    # One-time setup fee on the first invoice — unless this org already paid it, or
+    # we're waiving it for founding customers (WAIVE_SETUP_FEE). One-time prices sit
+    # fine alongside a yearly plan.
+    if not settings.get("setup_fee_paid") and not _waive_setup_fee():
         setup = _price_by_lookup(SETUP_LOOKUP)
         if setup:
             line_items.append({"price": setup, "quantity": 1})
 
     if outbound:
-        ob = _price_by_lookup(OUTBOUND_LOOKUP)
+        # The add-on must share the plan's billing interval (Stripe requirement).
+        ob = _price_by_lookup(OUTBOUND_LOOKUP_YEARLY if interval == "year" else OUTBOUND_LOOKUP)
         if ob:
             line_items.append({"price": ob, "quantity": 1})
 
+    meta = {
+        "org_id": org_id, "plan": plan,
+        "outbound": str(bool(outbound)).lower(), "interval": interval,
+    }
     kwargs = {
         "mode": "subscription",
         "line_items": line_items,
         "success_url": f"{app_url}/app/welcome?session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{app_url}/app/onboarding?canceled=1",
         "client_reference_id": org_id,
-        "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()},
-        "subscription_data": {
-            "metadata": {"org_id": org_id, "plan": plan, "outbound": str(bool(outbound)).lower()}
-        },
+        "allow_promotion_codes": True,  # customers can enter a Stripe promo/discount code
+        "metadata": meta,
+        "subscription_data": {"metadata": meta},
     }
     if email:
         kwargs["customer_email"] = email
@@ -137,6 +164,31 @@ def create_checkout(org_id: str, business_name: str, email, plan: str = "pro", o
         kwargs["tax_id_collection"] = {"enabled": True}
 
     session = stripe.checkout.Session.create(**kwargs)
+    return session.url
+
+
+def create_portal_session(org_id: str) -> str:
+    """Create a Stripe Billing Portal session so the customer can manage or CANCEL
+    their subscription (and update their card / see invoices) themselves. Returns
+    the hosted URL. Requires the Customer Portal to be enabled in the Stripe
+    dashboard (Settings → Billing → Customer portal), with cancellation allowed."""
+    stripe = _stripe()
+    settings = settings_store.get_settings(org_id)
+    customer = settings.get("stripe_customer_id")
+    if not customer:
+        raise BillingError("No subscription on file yet — nothing to manage.")
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=customer,
+            return_url=f"{_app_url()}/app/settings",
+        )
+    except Exception as e:
+        # Most common cause: the Customer Portal hasn't been configured/activated
+        # for this Stripe mode yet.
+        raise BillingError(
+            "Couldn't open the billing portal. Make sure the Stripe Customer Portal "
+            f"is enabled for this mode (test/live). ({e})"
+        ) from e
     return session.url
 
 

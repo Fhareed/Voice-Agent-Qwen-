@@ -6,6 +6,7 @@ import { BACKEND_URL } from "@/lib/api";
 // backend with the session token; the backend enforces ADMIN_EMAILS.
 export async function GET(req: Request) {
   const token = cookies().get("ld_token")?.value;
+  const admin = cookies().get("ld_admin")?.value;
   if (!token) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   try {
     const r = await fetch(`${BACKEND_URL}/admin/support${qs}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(admin ? { "X-Admin-Token": admin } : {}) },
       cache: "no-store",
     });
     const data = await r.json().catch(() => ({}));

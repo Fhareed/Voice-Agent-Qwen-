@@ -4,6 +4,47 @@
 
 ---
 
+## 0. LATEST STATE — Nov 7 2026 (READ THIS FIRST; supersedes older sections where they conflict)
+
+This session added the **admin console, admin login, two-way support chat, the getting-started guide, and a big billing upgrade (founding offer, promo codes, self-serve cancellation, yearly plans, and Pro usage-overage billing)**. Everything below is landed in the repo on my Mac (`~/Voice_Agent`) and verified with `tsc` + `next build`. I deploy by pushing to GitHub, then `git pull` + restart on the Oracle server; the frontend is still local (Vercel is pending).
+
+### 0.1 OPERATIONAL GOTCHAS — these cost us hours this session, so know them up front
+- **IDE clobber (critical).** I edit in **Antigravity IDE / VS Code** on my Mac. Any file that is **open in an editor tab gets reverted** — the stale editor buffer re-saves over external writes within seconds. When a change "doesn't stick," it's this. Fix: I **close that file's tab** before the change is written, then it sticks. (You land files to my Mac via the device bridge; always verify with a grep after, and if it reverted, ask me to close the tab.)
+- **`npm run build` + `npm start` serves a FIXED snapshot.** It does NOT hot-reload — source changes are invisible until I rebuild. For iterating, use **`npm run dev`**. After any file change, a clean rebuild is `rm -rf .next && npm run build && npm start` (or `npm run dev`). A whole debugging saga this session was just a stale build.
+- **`.content .grid` CSS collision (caused an icon-clipping bug).** `globals.css` defines `.content .grid` as the dashboard's 2-column layout (`minmax(0,1fr) 308px`). Tailwind also has a `.grid` utility. So using the Tailwind **`grid` class on a small element inside the dashboard** (`.content`) makes it inherit that 2-column template **on wide desktop screens only** → the element's content gets squeezed into a 0-width column and clipped. **Fix pattern:** for small centered boxes (icon chips, badges) inside the dashboard, use inline `style={{display:"inline-flex",…}}` / flex utilities, **never the `grid` + `place-items-center` classes.** (It looked fine at phone width because a responsive rule collapses `.content .grid` to one column under 1040px.)
+- **Python scripts:** run from the repo root with the venv active — `source .venv/bin/activate` first (conda `base` doesn't have `stripe`, etc.).
+- **Secrets were visible in screenshots this session** (Stripe test key, Retell, Groq, Supabase, and my admin password). **Rotate them before go-live.** Still never put secrets in this doc (see §10).
+
+### 0.2 What was built this session (all landed)
+- **Admin console — rebuilt into a branded, multi-page admin** at `/app/admin`, matching the marketing homepage aesthetic (neo-brutalist, Space Grotesk, cream/ink/flame). Tabs: **Metrics / Businesses / Messages** (shared `AdminShell`; old single `AdminView.tsx` was replaced by `components/admin/*` + `app/app/admin/*`). Metrics page: headline tiles (businesses, subscribed, onboarded, active-7d, calls, bookings), a conversion strip, a **calls-per-day (30d) chart**, and **by-country / by-plan / by-language** bar-lists. Backend `/admin/metrics` was enriched (`calls_7d`, `bookings_7d`, `calls_per_day`) and the **"0 with a number" bug fixed** (it now counts `org_phone_numbers`, not just a settings field).
+- **Admin password login (second gate).** On top of the `ADMIN_EMAILS` allowlist, there's now a shared **`ADMIN_PASSWORD`** (env). When set, reaching the admin also requires signing in at **`/app/admin/login`** → mints a signed, HttpOnly, 12h cookie that `require_admin` verifies on every `/admin/*` call. If `ADMIN_PASSWORD` is unset the gate is off (allowlist only), so nothing breaks before it's set. (I've set it locally already.)
+- **Two-way support chat.** Customers message the team from **`/app/support`**; I read + reply from the admin **Messages** tab; it's a real back-and-forth **thread** (both sides can keep replying). Needs migrations **`sql/007_support_messages.sql` then `sql/008_support_threads.sql`** (008 rebuilds the table as threaded). Files: `support_store.py`, `/support/threads…` + `/admin/support…` endpoints, `components/admin/SupportInbox.tsx`, `components/SupportView.tsx`.
+- **Getting-started guide.** A dismissible setup checklist at the top of the dashboard (`components/GettingStarted.tsx`) — profile / knowledge base / calendar / number / plan, auto-ticked from setup status, with a "hearing it live" tip. (Icons here are inline SVGs on purpose — see the `.content .grid` gotcha.)
+- **Billing — founding offer + promo codes.** `WAIVE_SETUP_FEE=1` waives the €249 setup fee at checkout for everyone (founding period); the homepage pricing shows a "founding offer — €249 setup waived" banner. Checkout also now accepts **Stripe promo codes** (`allow_promotion_codes`). Create actual codes in the Stripe dashboard (test + live).
+- **Self-serve cancellation.** Settings → **"Manage subscription"** opens the **Stripe Customer Portal** (cancel / update card / invoices). The existing webhook already deactivates the org + releases its number on cancel. **Action needed:** enable the Customer Portal in the Stripe dashboard (test AND live) with cancellation allowed.
+- **Yearly plans.** Starter **€790/yr**, Pro **€1,490/yr** (2 months free). Onboarding has a **Monthly/Yearly toggle**; checkout charges the right price. New Stripe prices (`plan_starter_eur_yearly`, `plan_pro_eur_yearly`, `addon_outbound_eur_yearly`) are created by `scripts/stripe_setup_prices.py` — **already run in TEST** (confirmed created). Re-run it on Oracle with the LIVE key for production.
+- **Pro fair-use overage billing (replaces "unlimited").** Pro now includes **1,000 call-minutes/month**; minutes over that are auto-charged at **€0.15/min** via **`scripts/bill_overage.py`** — run monthly by cron (crontab line is in the script's header), idempotent, invoices immediately so it works for monthly and yearly customers. Env: `PRO_INCLUDED_MINUTES=1000`, `OVERAGE_CENTS_PER_MIN=15`. The overage/yearly/setup clauses were added to the Terms **source** (`docs/legal/terms_of_service.md`) — but the **rendered `/legal/terms` page is NOT regenerated yet** (see §0.4).
+- **Data reset script.** `sql/clean_reset_data.sql` wipes test/mock businesses but **keeps the demo org** `a98dfa4e-e1a8-4317-8cfe-a59180b15d3f`. (Run it for a clean slate; it's set to keep the demo by default.)
+
+### 0.3 Pricing / commission decisions made this session
+- **Founding customers: NO setup fee** (was €249) — via `WAIVE_SETUP_FEE`.
+- **Pro is no longer "unlimited."** It's **1,000 min/month included, then €0.15/min**. (Reason: all-in voice cost ≈ €0.10/min, so old "unlimited" went loss-making above ~1,400 min. Starter at 100 calls stays ~70% margin.)
+- **Yearly = 2 months free** (10× monthly).
+- **Referral/commission model = flat €50 per new customer who stays ≥30 days.** This is for a plan to recruit **marketing students as a referral program** (not salaried; paid per customer brought). Framed as a referral/ambassador program, not an internship. **NOT BUILT YET — this is the next build (see §0.4).**
+
+### 0.4 TOP OF THE QUEUE / next actions
+1. **€50 referral tracking (next build).** Referral codes each referrer hands out → captured at signup → tags the customer to that referrer → an admin **"who referred whom"** view so I know who to pay the €50. Idea: the referral code can double as the customer's discount (Stripe promo) AND the attribution tag.
+2. **Regenerate the live legal pages** so `/legal/terms` reflects the overage/yearly/setup clauses (they're only in the source `.md` now). `frontend/lib/legalContent.ts` was auto-generated from `docs/legal/*.md` (python-markdown); no generator script is checked in, so it needs regenerating (part of the pre-go-live legal finalize/lawyer pass anyway).
+3. **Known latent bug:** backend logs show a psycopg `can't change 'autocommit' now: connection in transaction status ACTIVE` warning (a DB connection not being cleanly released to the pool). Requests still return 200, but worth fixing before real load.
+4. **Go-live checklist (ops):** deploy **frontend → Vercel** (`BACKEND_URL=` the Oracle URL); on Oracle set the production `.env` (`WAIVE_SETUP_FEE=1`, `ADMIN_PASSWORD`, **live** Stripe keys), run `stripe_setup_prices.py` (live), add the **`bill_overage.py` monthly cron**, enable the Stripe **Customer Portal (live)**; run migrations **007 + 008** (+ `clean_reset_data.sql` if wanted) in Supabase; **make the repo private**; **rotate the exposed secrets**; confirm **Supabase is in an EU region**; set **Retell recording retention** + sign sub-processor DPAs; fill the legal `[placeholders]` + lawyer review. The marketing yearly toggle is now actually wired (was display-only).
+
+### 0.5 Deploy model (I kept getting confused on this — keep it clear)
+- **Code** lives in git. You land my code changes onto my **Mac** repo; they reach **Oracle** only when I `git push` on the Mac then `git pull` + restart on Oracle.
+- **`.env` is NOT in git** — it's separate per machine. So env toggles (`WAIVE_SETUP_FEE`, `ADMIN_PASSWORD`, Stripe keys, overage vars) must be set in **each** `.env`: my Mac's for local testing, Oracle's for production.
+- Right now I test on my **Mac** (local `uvicorn` + `npm run dev`/build). **Oracle is production.** The frontend isn't deployed yet.
+
+---
+
 ## 1. Who I am & what I'm building
 - I'm **Farid**, founder. I'm building **Lumidesk** — an **AI phone receptionist** (AI voice agent) for small **local service businesses** (plumbers, HVAC, clinics, salons, law offices, real estate). It answers every call 24/7, talks naturally, books appointments into a calendar, texts a confirmation, and logs every call to a dashboard.
 - Parent company: **DeepO3**. Reddit handle: **Fhareed**. Login email: **oladegafarid@outlook.com**.
@@ -65,7 +106,8 @@ A production-readiness audit found the self-serve loop didn't fully close. The t
 - **Saudi phone number:** a real local +966 number isn't feasible fast (CITC regulation needs a Saudi entity/address). For the demo: outbound call to his mobile, or a web call. Long-term: Unifonic (Saudi CPaaS) issues compliant +966 numbers that connect to Retell over SIP, or the customer provides their own number.
 - **Test script:** I have 3 realistic Arabic caller role-play scenarios (Khalid the impatient businessman / Noura the worried tenant / Abu Sultan the older caller who switches to English) for a native tester to validate the agent before the demo.
 
-## 6. Pricing (FINALIZED Nov 2026 — validated against real call costs)
+## 6. Pricing (base context — but see §0.3 for the Nov 7 changes that supersede parts of this)
+> **Updated Nov 7:** setup fee is now **waived for founding customers**; Pro is **1,000 min/mo + €0.15/min overage** (not "unlimited ~500 calls"); **yearly plans added** (2 months free); early-bird is now **no setup fee + a €50-per-referral program**. The section below is the earlier reasoning/context.
 **Locked structure (EU / homepage — live in `frontend/components/marketing/Pricing.tsx`):**
 - **One-time setup fee: €249** — concierge onboarding (provisioning, business training, number + calendar setup). Raises commitment, filters tire-kickers; waivable for annual prepay.
 - **Starter — €79/mo:** inbound 24/7, up to 100 calls/mo, books one calendar, texts you every lead.
@@ -151,6 +193,7 @@ A Reddit prospect, **Infamous_Delivery476 ("Tarek", based in Morocco)**, saw the
 **Open questions his email must answer:** the goal (lead-qualify / delivery-confirm / survey / follow-up), the **volume** (calls per campaign × length × frequency — this sets the price), **who** he's calling (his own existing customers = clean; cold strangers = outbound-calling regulations apply: consent, calling hours, AI disclosure — varies by country), and the **language** (Morocco may need Darija or French).
 
 ## 8. Open threads / to-dos
+> **See §0.4 first** for the current top-of-queue (the €50 referral build, legal-page regen, go-live checklist). The list below is the earlier backlog; several billing items here are now DONE (see §0.2).
 **Launch gap checklist (from the Nov 3 production-readiness audit — tackle top-down):**
 - ✅ #1 Phone-number automation (buy / import / reuse + attach + map) — DONE (§3a).
 - ✅ #2 Inbound call routing (org_phone_numbers now written) — DONE (§3a).

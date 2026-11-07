@@ -1,9 +1,12 @@
+import base64
+import hashlib
+import hmac
 import io
 import os
 import tempfile
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -718,13 +721,80 @@ def _admin_emails() -> set:
     return {e.strip().lower() for e in raw.split(",") if e.strip()}
 
 
-def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    """Allow only a logged-in user whose email is in ADMIN_EMAILS."""
+# ── Admin password (second gate, on top of ADMIN_EMAILS) ──────────
+# When ADMIN_PASSWORD is set, reaching the admin area also requires signing in
+# with that password, which mints a short-lived signed token stored in an
+# HttpOnly cookie and sent back as X-Admin-Token. If ADMIN_PASSWORD is NOT set,
+# this layer is inactive and the admin stays gated by the email allowlist only
+# (so nothing breaks before the password is configured).
+_ADMIN_SESSION_TTL = 12 * 3600  # seconds
+
+
+def _admin_password() -> str:
+    return os.getenv("ADMIN_PASSWORD", "")
+
+
+def _admin_sign_secret() -> bytes:
+    # A dedicated secret if provided, else derived from the password itself so a
+    # single env var is enough. Rotating the password invalidates old sessions.
+    return (os.getenv("ADMIN_SESSION_SECRET") or _admin_password() or "lumidesk").encode()
+
+
+def _make_admin_token(ttl: int = _ADMIN_SESSION_TTL) -> str:
+    exp = int(time.time()) + ttl
+    payload = base64.urlsafe_b64encode(str(exp).encode()).decode().rstrip("=")
+    sig = hmac.new(_admin_sign_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _verify_admin_token(token: str) -> bool:
+    try:
+        payload, sig = (token or "").split(".", 1)
+        expected = hmac.new(_admin_sign_secret(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return False
+        exp = int(base64.urlsafe_b64decode(payload + "==").decode())
+        return time.time() < exp
+    except Exception:
+        return False
+
+
+def require_admin(request: Request, user: dict = Depends(get_current_user)) -> dict:
+    """Allow only a logged-in user whose email is in ADMIN_EMAILS. When an admin
+    password is configured, also require a valid admin session token."""
     allow = _admin_emails()
     email = (user.get("email") or "").lower()
     if not allow or email not in allow:
         raise HTTPException(status_code=403, detail="Admin access only.")
+    if _admin_password():
+        if not _verify_admin_token(request.headers.get("X-Admin-Token", "")):
+            # Distinct detail so the frontend can send them to the admin login
+            # (vs. "not an admin", which is a dead end).
+            raise HTTPException(status_code=403, detail="admin_session_required")
     return user
+
+
+class AdminLoginIn(BaseModel):
+    password: str
+
+
+@app.post("/admin/login")
+def admin_login(body: AdminLoginIn, user: dict = Depends(get_current_user)):
+    """Exchange the shared admin password for a short-lived admin session token.
+    The caller must already be a logged-in user on the ADMIN_EMAILS allowlist."""
+    allow = _admin_emails()
+    email = (user.get("email") or "").lower()
+    if not allow or email not in allow:
+        raise HTTPException(status_code=403, detail="Admin access only.")
+    pw = _admin_password()
+    if not pw:
+        raise HTTPException(
+            status_code=400,
+            detail="Admin password isn't configured. Set ADMIN_PASSWORD in the backend .env.",
+        )
+    if not hmac.compare_digest(body.password or "", pw):
+        raise HTTPException(status_code=401, detail="Incorrect admin password.")
+    return {"ok": True, "token": _make_admin_token(), "expires_in": _ADMIN_SESSION_TTL}
 
 
 @app.get("/admin/orgs")
@@ -800,6 +870,7 @@ def admin_metrics(_: dict = Depends(require_admin)):
     from db import get_engine
 
     m: dict = {}
+    number_org_ids: set = set()
     with get_engine().connect() as conn:
         m["total_orgs"] = int(conn.execute(text("select count(*) from organizations")).scalar() or 0)
         m["new_7d"] = int(conn.execute(
@@ -810,13 +881,25 @@ def admin_metrics(_: dict = Depends(require_admin)):
         ).scalar() or 0)
         m["total_calls"] = int(conn.execute(text("select count(*) from call_logs")).scalar() or 0)
         m["total_bookings"] = int(conn.execute(text("select count(*) from bookings")).scalar() or 0)
-        settings_rows = conn.execute(text("select data from org_settings")).all()
+        m["calls_7d"] = int(conn.execute(
+            text("select count(*) from call_logs where created_at >= now() - interval '7 days'")
+        ).scalar() or 0)
+        m["bookings_7d"] = int(conn.execute(
+            text("select count(*) from bookings where created_at >= now() - interval '7 days'")
+        ).scalar() or 0)
+        settings_rows = conn.execute(text("select org_id, data from org_settings")).all()
+        # A provisioned number lives in org_phone_numbers; some orgs also (or only)
+        # carry it in their settings blob. Count an org as "with a number" if EITHER
+        # holds — the old code only checked settings, so real numbers read as 0.
+        for (nid,) in conn.execute(text("select distinct org_id from org_phone_numbers")).all():
+            if nid is not None:
+                number_org_ids.add(str(nid))
 
     paid = onboarded = with_agent = with_number = 0
     by_plan: dict = {}
     by_country: dict = {}
     by_language: dict = {}
-    for (data,) in settings_rows:
+    for org_id, data in settings_rows:
         d = data or {}
         if d.get("paid"):
             paid += 1
@@ -824,7 +907,7 @@ def admin_metrics(_: dict = Depends(require_admin)):
             onboarded += 1
         if d.get("retell_agent_id"):
             with_agent += 1
-        if d.get("retell_phone_number"):
+        if str(org_id) in number_org_ids or d.get("retell_phone_number"):
             with_number += 1
         p = d.get("plan") or "—"
         by_plan[p] = by_plan.get(p, 0) + 1
@@ -848,6 +931,28 @@ def admin_metrics(_: dict = Depends(require_admin)):
             m["total_users"] = int(c2.execute(text("select count(*) from auth.users")).scalar() or 0)
     except Exception:
         pass
+
+    # Calls per day for the last 30 days (oldest → newest), zero-filled so the
+    # chart always has 30 points. Best-effort — never 500 the whole endpoint.
+    today = datetime.now(timezone.utc).date()
+    days = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    per_day: dict = {}
+    try:
+        with get_engine().connect() as c3:
+            for d_, n in c3.execute(
+                text(
+                    "select (created_at at time zone 'UTC')::date d, count(*) "
+                    "from call_logs where created_at >= now() - interval '30 days' "
+                    "group by d"
+                )
+            ).all():
+                if d_ is not None:
+                    per_day[d_.isoformat()] = int(n)
+    except Exception:
+        per_day = {}
+    m["calls_per_day"] = [
+        {"date": day.isoformat(), "count": per_day.get(day.isoformat(), 0)} for day in days
+    ]
 
     return {"metrics": m}
 
@@ -945,6 +1050,7 @@ def provision_me(ctx: dict = Depends(require_org_member)):
 class CheckoutIn(BaseModel):
     plan: str = "pro"
     outbound: bool = False
+    interval: str = "month"  # "month" or "year" (yearly = 2 months free)
 
 
 @app.post("/billing/checkout")
@@ -958,7 +1064,9 @@ def billing_checkout(body: CheckoutIn | None = None, ctx: dict = Depends(require
     name = settings.get("business_name") or ""
     b = body or CheckoutIn()
     try:
-        url = billing.create_checkout(org_id, name, email, plan=b.plan, outbound=b.outbound)
+        url = billing.create_checkout(
+            org_id, name, email, plan=b.plan, outbound=b.outbound, interval=b.interval,
+        )
     except billing.BillingError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"url": url}
@@ -980,6 +1088,18 @@ def billing_confirm(body: dict, ctx: dict = Depends(require_org_member)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {e}")
+
+
+@app.post("/billing/portal")
+def billing_portal(ctx: dict = Depends(require_org_member)):
+    """Open the Stripe Customer Portal for the caller's org so they can manage or
+    cancel their subscription, update their card, and view invoices."""
+    import billing
+
+    try:
+        return {"url": billing.create_portal_session(ctx["org_id"])}
+    except billing.BillingError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/billing/webhook")

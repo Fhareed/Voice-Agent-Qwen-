@@ -64,6 +64,11 @@ const TIERS: Tier[] = [
   },
 ];
 
+// Founding-customer offer: setup fee waived for our first customers. Flip to
+// false when the founding period ends (and turn off WAIVE_SETUP_FEE on the
+// backend to match).
+const FOUNDING = true;
+
 export default function Pricing() {
   const [yearly, setYearly] = useState(false);
   const price = (m: number) => (yearly ? Math.round((m * 10) / 12) : m);
@@ -79,6 +84,12 @@ export default function Pricing() {
           <p className="mt-5 max-w-xl font-sans text-[18px] text-muted">
             One-time setup, then a flat monthly fee. Every call answered. Cancel anytime.
           </p>
+          {FOUNDING && (
+            <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border-2 border-ink bg-sun px-4 py-2 font-display text-[13.5px] font-bold text-ink shadow-[4px_5px_0_#111827]">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-flame" />
+              Founding offer — we&apos;re waiving the €249 setup fee for our first customers.
+            </div>
+          )}
         </Reveal>
 
         <Reveal delay={0.1}>
@@ -113,7 +124,13 @@ export default function Pricing() {
                     <span className="pb-1.5 font-sans text-[14px] font-semibold text-ink/70">/mo{t.priceSuffix ? ` ${t.priceSuffix}` : ""}</span>
                   </div>
                   {t.setup ? (
-                    <div className="mt-1 font-sans text-[13px] font-semibold text-ink/60">+ €{t.setup} one-time setup</div>
+                    FOUNDING ? (
+                      <div className="mt-1 font-sans text-[13px] font-bold text-ink">
+                        <span className="text-ink/45 line-through">€{t.setup} setup</span> — €0, founding offer
+                      </div>
+                    ) : (
+                      <div className="mt-1 font-sans text-[13px] font-semibold text-ink/60">+ €{t.setup} one-time setup</div>
+                    )
                   ) : (
                     <div className="mt-1 font-sans text-[13px] font-semibold text-ink/60">Add-on to any plan</div>
                   )}
@@ -146,7 +163,9 @@ export default function Pricing() {
 
         <Reveal delay={0.1}>
           <div className="mt-8 rounded-[18px] border-2 border-ink bg-sun px-6 py-4 font-display text-[14px] font-bold text-ink">
-            Every plan includes a one-time €249 setup (concierge onboarding). No contract, cancel anytime, keep every lead you capture.
+            {FOUNDING
+              ? "Founding customers pay no setup fee (normally €249) — concierge onboarding still included. No contract, cancel anytime, keep every lead you capture."
+              : "Every plan includes a one-time €249 setup (concierge onboarding). No contract, cancel anytime, keep every lead you capture."}
           </div>
         </Reveal>
       </div>

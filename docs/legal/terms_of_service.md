@@ -50,7 +50,10 @@ For Caller Data, **you are the data controller and we are your processor**. You 
 - **Subscriptions.** The Service is offered on subscription plans. Current plans and prices are shown at sign-up/checkout. Fees are stated exclusive of VAT and other taxes unless noted; you are responsible for applicable taxes.
 - **Payment.** Payments are processed by **Stripe**. By subscribing you authorise us (via Stripe) to charge your payment method for the plan and any applicable usage.
 - **Phone numbers and usage.** Provisioning a phone number through the Service carries a **recurring monthly cost**, and call minutes and SMS may incur usage-based costs. These are disclosed before you incur them; you are responsible for the costs of numbers and usage on your account. [Confirm exactly how number/usage costs are billed — bundled in the plan vs. passed through.]
-- **Auto-renewal.** Subscriptions **renew automatically** for successive terms (e.g. monthly) until cancelled, and we charge the then-current fee for each renewal. [Confirm renewal interval.]
+- **Included usage and overage.** The **Pro** plan includes a monthly allowance of call-minutes (currently **1,000 minutes per calendar month**). Call-minutes used beyond the included allowance are charged at a per-minute overage rate (currently **€0.15 per minute**), billed via Stripe. The **Starter** plan is limited to the number of answered calls stated for that plan. Included allowances reset each calendar month and do not roll over.
+- **Billing interval.** Plans are billed **monthly** or **yearly**, as you choose at checkout. Yearly plans are billed once per year at the stated annual price (equivalent to ten months — i.e. two months free).
+- **Setup fee.** A one-time setup fee may apply as shown at checkout. We may waive it for promotional or founding customers at our discretion.
+- **Auto-renewal.** Subscriptions **renew automatically** for successive terms (monthly or yearly, as selected) until cancelled, and we charge the then-current fee for each renewal.
 - **Changes to pricing.** We may change prices for future terms with reasonable prior notice (e.g. [30] days). Continued use after a price change takes effect means you accept it.
 - **Non-payment.** If a charge fails, we may suspend the Service (including releasing phone numbers) until payment is resolved.
 

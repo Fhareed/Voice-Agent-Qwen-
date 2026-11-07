@@ -1,9 +1,65 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import Icon from "./Icon";
 import type { Settings } from "@/lib/api";
+
+// Self-contained inline icon glyphs — no sprite / <use> / Icon-module dependency,
+// so they render identically in every browser and can't be affected by stale
+// module caching or the dashboard's global svg CSS. Explicit viewBox + size.
+const GLYPHS: Record<string, ReactNode> = {
+  "i-settings": (
+    <>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  "i-book": (
+    <>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </>
+  ),
+  "i-calendar-check": (
+    <>
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M3 10h18" />
+      <path d="m9 16 2 2 4-4" />
+    </>
+  ),
+  "i-wrench": (
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  ),
+  "i-sparkles": (
+    <path d="M12 4l1.8 4.6a3 3 0 0 0 1.6 1.6L20 12l-4.6 1.8a3 3 0 0 0-1.6 1.6L12 20l-1.8-4.6a3 3 0 0 0-1.6-1.6L4 12l4.6-1.8a3 3 0 0 0 1.6-1.6z" />
+  ),
+  "i-check": <path d="M20 6 9 17l-5-5" />,
+  "i-phone": (
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+  ),
+};
+
+function Glyph({ name, size = 18 }: { name: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      {GLYPHS[name]}
+    </svg>
+  );
+}
 
 // A friendly, dismissible setup checklist shown at the top of the dashboard for
 // a brand-new business. Each step links to the page that completes it, and the
@@ -132,7 +188,7 @@ export default function GettingStarted({
         onClick={reopen}
         className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#E7E6EC] bg-white px-3.5 py-1.5 text-[12.5px] font-bold text-[#6B6B70] shadow-[0_6px_18px_rgba(23,23,23,0.04)] transition-colors hover:border-cobalt hover:text-cobalt"
       >
-        <Icon name="i-sparkles" style={{ width: 15, height: 15 }} />
+        <Glyph name="i-sparkles" size={15} />
         Show setup guide
       </button>
     );
@@ -143,8 +199,20 @@ export default function GettingStarted({
     return (
       <section className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#CDEBD6] bg-[#EAF8EF] px-5 py-4 shadow-[0_10px_28px_rgba(23,23,23,0.05)] sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#1C7A43] text-white">
-            <Icon name="i-check" style={{ width: 18, height: 18 }} />
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              borderRadius: 9999,
+              flex: "0 0 auto",
+              background: "#1C7A43",
+              color: "#fff",
+            }}
+          >
+            <Glyph name="i-check" size={18} />
           </span>
           <div>
             <div className="font-display text-[15px] font-bold text-[#161616]">You&apos;re all set up 🎉</div>
@@ -170,7 +238,7 @@ export default function GettingStarted({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icon name="i-sparkles" style={{ width: 18, height: 18 }} />
+            <Glyph name="i-sparkles" size={18} />
             <h2 className="font-display text-[18px] font-bold tracking-[-0.01em] text-[#161616]">
               Welcome{orgName ? `, ${orgName}` : ""} — let&apos;s get you set up
             </h2>
@@ -205,14 +273,32 @@ export default function GettingStarted({
 
       {/* Steps */}
       <div className="mt-4 flex flex-col divide-y divide-[#EDEEF1]">
-        {steps.map((st) => (
+        {steps.map((st, i) => {
+          const accents = [
+            { bg: "#EAF0FF", fg: "#2F6BFF" }, // cobalt
+            { bg: "#F1ECFF", fg: "#7C5CFF" }, // grape
+            { bg: "#E6F8F0", fg: "#149A6B" }, // mint
+            { bg: "#FFEDE4", fg: "#E4572E" }, // flame
+            { bg: "#FFF5D6", fg: "#A5790B" }, // sun
+          ];
+          const a = accents[i % accents.length];
+          return (
           <div key={st.key} className="flex flex-wrap items-center gap-3 py-3 sm:flex-nowrap">
             <span
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-                st.done ? "bg-[#1C7A43] text-white" : "bg-[#F2F3F5] text-[#8E8E92]"
-              }`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                flex: "0 0 auto",
+                ...(st.done
+                  ? { background: "#1C7A43", color: "#fff" }
+                  : { background: a.bg, color: a.fg }),
+              }}
             >
-              <Icon name={st.done ? "i-check" : st.icon} style={{ width: 16, height: 16 }} />
+              <Glyph name={st.done ? "i-check" : st.icon} size={17} />
             </span>
             <div className="min-w-0 flex-1">
               <div className={`text-[14px] font-bold ${st.done ? "text-[#8E8E92] line-through" : "text-[#161616]"}`}>
@@ -231,12 +317,15 @@ export default function GettingStarted({
               </Link>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Final tip — hearing it live */}
       <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-[#F6F7F9] px-4 py-3">
-        <Icon name="i-phone" style={{ width: 16, height: 16, marginTop: 2 }} />
+        <span className="shrink-0" style={{ marginTop: 2 }}>
+          <Glyph name="i-phone" size={16} />
+        </span>
         <p className="text-[12.5px] text-[#6B6B70]">
           <b className="text-[#2A2A2E]">Tip:</b> once you have a number, call it yourself to hear your
           receptionist answer — it&apos;s the fastest way to see what your customers will experience.

@@ -65,6 +65,7 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
   const [openSat, setOpenSat] = useState(false);
   const [plan, setPlan] = useState<"starter" | "pro">(str(s, "plan", "pro") === "starter" ? "starter" : "pro");
   const [outbound, setOutbound] = useState(false);
+  const [interval, setBillInterval] = useState<"month" | "year">("month");
 
   const [phase, setPhase] = useState<"form" | "redirecting">("form");
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +111,7 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, outbound }),
+        body: JSON.stringify({ plan, outbound, interval }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) {
@@ -230,6 +231,22 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
 
           <div className="mt-5">
             <label className={LABEL}>Choose your plan</label>
+            <div className="mb-3 inline-flex items-center rounded-full border border-[#E7E6EC] bg-[#F6F7F9] p-1">
+              <button
+                type="button"
+                onClick={() => setBillInterval("month")}
+                className={`rounded-full px-4 py-1.5 text-[13px] font-bold transition-colors ${interval === "month" ? "bg-cobalt text-white" : "text-[#6B6B70]"}`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillInterval("year")}
+                className={`rounded-full px-4 py-1.5 text-[13px] font-bold transition-colors ${interval === "year" ? "bg-cobalt text-white" : "text-[#6B6B70]"}`}
+              >
+                Yearly · 2 months free
+              </button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {PLANS.map((p) => (
                 <button
@@ -243,18 +260,24 @@ export default function OnboardingView({ settings, orgName }: { settings: Settin
                     {p.badge && <span className="rounded-full bg-cobalt/10 px-2 py-0.5 text-[11px] font-bold text-cobalt">{p.badge}</span>}
                   </div>
                   <div className="mt-1 font-display text-[20px] font-bold text-[#161616]">
-                    €{p.monthly}
-                    <span className="text-[12px] font-semibold text-[#8E8E92]"> /mo</span>
+                    {interval === "year" ? (
+                      <>€{p.monthly * 10}<span className="text-[12px] font-semibold text-[#8E8E92]"> /yr</span></>
+                    ) : (
+                      <>€{p.monthly}<span className="text-[12px] font-semibold text-[#8E8E92]"> /mo</span></>
+                    )}
                   </div>
+                  {interval === "year" && (
+                    <div className="text-[11.5px] font-semibold text-[#8E8E92]">≈ €{Math.round((p.monthly * 10) / 12)}/mo · 2 months free</div>
+                  )}
                   <div className="mt-1 text-[12px] text-[#8E8E92]">{p.blurb}</div>
                 </button>
               ))}
             </div>
             <label className="mt-3 flex items-center gap-2.5 text-[13px] font-semibold text-[#2A2A2E]">
               <Toggle checked={outbound} onChange={setOutbound} />
-              Add outbound calling (+€99/mo)
+              Add outbound calling (+€{interval === "year" ? "990/yr" : "99/mo"})
             </label>
-            <p className="mt-2 text-[12px] text-[#8E8E92]">Plus a one-time €249 setup fee on your first invoice.</p>
+            <p className="mt-2 text-[12px] text-[#8E8E92]">Founding offer — no setup fee (normally €249).</p>
           </div>
 
           {error && phase === "form" && (
